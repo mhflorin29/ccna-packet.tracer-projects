@@ -1,0 +1,279 @@
+MIHAI Florin Ionut
+1/2 English
+#DHCP Server, DNS Server, Web Server Lab 1
+
+##1. Purpose and Description
+➤ In practice, we do not always have a dedicated DHCP server available, properly equipped, with rack space, sufficient memory, or a DHCP server configured on an operating system like Linux. An efficient and accessible solution can be configuring a router as a DHCP server. Also, in this project, I will present the configuration of a DHCP Client on a router (a less common situation), as well as the role and utility of a DHCP Relay Agent.
+
+##2. New CLI Commands Used:
+ip dhcp excluded-address 172.25.1.1 172.25.1.15 – specifies which addresses will NOT be allocated to DHCP clients (instead, they can be statically assigned to more sensitive equipment, such as printers, surveillance cameras).
+ip dhcp pool 172.25.1.0/25 – creates a DHCP pool.
+network 172.25.1.0 255.255.255.0 – sets the network and subnet mask for the clients.
+dns-server 1.1.1.1 – specifies the DNS server that clients will use.
+domain-name mh.com – specifies the domain name of the network.
+default-router 172.25.1.254 – indicates to the clients which is the default gateway address of the router.
+show ip dhcp binding – displays all DHCP clients assigned by the router.
+show running-config | {include/section} dhcp – command to display the DHCP configuration.
+ip helper-address 192.51.100.1 – IP address of the “helper” router configured as a DHCP Relay Agent.
+ip address dhcp – router configuration as DHCP Client.
+
+##3. Network Topology:
+2 PCs (LAN1)
+2 laptops (LAN2)
+2 routers 2911
+2 switches 2960
+
+##4.Topology Description:
+➤ The topology is made up of two local subnets and a link network between the routers:
+
+172.25.1.0/24 – LAN network
+172.25.2.0/24 – LAN network
+192.51.100.0/30 – WAN-type network (for interconnecting the routers)
+
+➤ In the lab, I configured router R1 as a DHCP Server for the 172.25.1.0/24 network, so that the clients (laptops) would automatically receive IP addresses, gateway address, DNS, and subnet mask.
+
+➤ Later, I extended the configuration to also include:
+
+DHCP for 172.25.2.0/24
+DHCP for 192.51.100.0/30
+
+##5. Demonstration
+➤ I set R1 as the DHCP Server for 172.25.1.0 /24 and 172.25.2.0 /24 and 192.51.100.0/30. We can see the result:
+
+R1(config)#do show running-config | section dhcp
+ip dhcp excluded-address 172.25.1.1 172.25.1.15
+ip dhcp excluded-address 172.25.2.1 172.25.2.99
+ip dhcp excluded-address 192.51.100.1
+ip dhcp pool 172.25.1.0/24
+ network 172.25.1.0 255.255.255.0
+ default-router 172.25.1.254
+ dns-server 1.1.1.1
+ domain-name mh.com
+ip dhcp pool 172.25.2.0/24
+ network 172.25.2.0 255.255.255.0
+ default-router 172.25.2.1
+ dns-server 1.1.1.1
+ domain-name mh.com
+ip dhcp pool 192.51.100.0/32
+ network 192.51.100.0 255.255.255.252
+➤ On one of the laptops, I will access a dynamic DHCP configuration:
+
+
+C:\>ipconfig
+FastEthernet0 Connection:(default port)
+
+   Connection-specific DNS Suffix..:
+   Link-local IPv6 Address.........: FE80::201:42FF:FEC3:7780
+   IPv6 Address....................: ::
+   IPv4 Address....................: 0.0.0.0
+   Subnet Mask.....................: 0.0.0.0
+   Default Gateway.................: ::
+                                     0.0.0.0
+
+C:\>ipconfig /renew
+
+   IP Address......................: 172.25.1.16
+   Subnet Mask.....................: 255.255.255.0
+   Default Gateway.................: 172.25.1.254
+   DNS Server......................: 1.1.1.1
+➤ I will manually assign IP addresses to both routers, using the last available host address in the subnet (.254). Later, I will set the static route on both routers as follows:
+
+On router R2: ip route 172.25.1.0 255.255.255.0 GigabitEthernet0/1
+On router R1: ip route 172.25.2.0 255.255.255.0 GigabitEthernet0/0
+
+➤ To demonstrate the DHCP Client configuration feature on router R2, I will not manually set the address 192.51.100.2. Instead, after configuring the command ip address dhcp, the router will automatically receive an IP address, then I will activate the interface with the no shutdown command on the G0/1 interface of router R2.
+
+R2(config)#interface g0/1
+R2(config-if)#ip ad
+R2(config-if)#ip address dhcp
+R2(config-if)#no sh
+R2(config-if)#no shutdown 
+
+R2(config-if)#
+%LINK-5-CHANGED: Interface GigabitEthernet0/1, changed state to up
+
+%LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/1, changed state to up
+
+%DHCP-6-ADDRESS_ASSIGN: Interface GigabitEthernet0/1 assigned DHCP address 192.51.100.2, mask 255.255.255.252, hostname MH's R2
+➤ Later, on R1 we can see all DHCP clients that are assigned:
+
+R1(config)#do show ip dhcp binding
+IP address       Client-ID/              Lease expiration        Type
+                 Hardware address
+172.25.1.16      0001.42C3.7780           --                     Automatic
+172.25.1.17      00E0.B099.19CC           --                     Automatic
+192.51.100.2     00E0.8F02.0668           --                     Automatic
+➤ Next, I will configure router R2 as a DHCP Relay Agent so that I can allow clients from LAN1 (172.25.2.0/24) to be dynamically assigned IP addresses and other network characteristics from the DHCP Server.
+
+R2(config)#interface g0/0
+R2(config-if)#ip helper
+R2(config-if)#ip helper-address 192.51.100.1
+
+R2(config-if)#do show ip interface g0/0
+GigabitEthernet0/0 is up, line protocol is up (connected)
+  Internet address is 172.25.2.254/24
+  Broadcast address is 255.255.255.255
+  **Helper address is 192.51.100.1**
+➤ For the PC hosts in LAN1 to receive dynamic addresses, it is sufficient to run the command:
+
+C:\>ipconfig /renew
+
+   IP Address......................: 172.25.2.100
+   Subnet Mask.....................: 255.255.255.0
+   Default Gateway.................: 172.25.2.254
+   DNS Server......................: 1.1.1.1
+
+   (DHCP Servers....................: 192.51.100.1)
+
+##6. Conclusion
+➤ A router can efficiently function as a DHCP server in the absence of a dedicated server, providing dynamic IP address allocation and other essential network information.
+➤ Configuring a router as a DHCP Client allows it to automatically obtain an IP address from another network, which is useful in specific scenarios.
+➤ The use of a DHCP Relay Agent extends the functionality of the DHCP server to other subnets, allowing IP address allocation to clients in different networks than the server’s.
+➤ Basic configurations such as address exclusion, pool definition, and static route configuration are essential for the correct operation of the network.
+➤ Monitoring commands, such as show ip dhcp binding or show running-config | section dhcp, are useful for quickly checking current allocations and settings.
+
+2/2 Română
+#DHCP Server, DHCP Client, DHCP Relay Agent  Lab 3
+
+##1. Scop si descriere
+➤În practică, nu avem întotdeauna la dispoziție un server DHCP dedicat, echipat corespunzător, cu spațiu în rack, memorii suficiente sau un server DHCP configurat pe un sistem de operare precum Linux. O soluție eficientă și accesibilă poate fi configurarea unui router ca server DHCP. De asemenea, în acest proiect voi prezenta și configurarea unui DHCP Client pe router (o situație mai rar întâlnită), precum și rolul și utilitatea unui DHCP Relay Agent.
+
+##2. Comenzi noi folosite in CLI:
+ip dhcp excluded-address 172.25.1.1 172.25.1.15 – specifică ce adrese NU vor fi alocate clienților DHCP (în schimb, pot fi alocate static pentru echipamente mai sensibile, cum ar fi imprimante, camere de supraveghere).
+ip dhcp pool 172.25.1.0/25 – creează un DHCP pool.
+network 172.25.1.0 255.255.255.0 – stabilește rețeaua și subnet mask-ul pentru clienți.
+dns-server 1.1.1.1 – specifică DNS serverul pe care clienții îl vor folosi.
+domain-name mh.com – specifică domain name-ul rețelei.
+default-router 172.25.1.254 – indică clienților care este adresa default gateway a routerului.
+show ip dhcp binding – afișează toți clienții DHCP care sunt asignați pe router.
+show running-config | {include/section} dhcp – comandă pentru afișarea configurației DHCP.
+ip helper-address 192.51.100.1 – adresa IP a routerului „ajutător”, configurat ca DHCP Relay Agent.
+ip address dhcp – configurare router ca DHCP Client
+
+##3. Topologia de retea:
+2 PC-uri (LAN1)
+2 laptop-uri (LAN2)
+2 routere 2911
+2 switch-uri 2960
+
+
+##4.Descrierea topologiei:
+➤Topologia este formată din două subrețele locale și o rețea de legătură între routere:
+
+172.25.1.0/24 – rețea LAN
+172.25.2.0/24 – rețea LAN
+192.51.100.0/30 – rețea de tip WAN (pentru interconectarea routerelor)
+
+➤În cadrul laboratorului, am configurat routerul R1 ca DHCP Server pentru rețeaua 172.25.1.0/24, astfel încât clienții (laptopurile) să primească automat adrese IP, adresa gateway-ului, DNS și subnet mask.
+
+➤Ulterior, am extins configurația pentru a include și:
+
+DHCP pentru 172.25.2.0/24
+DHCP pentru 192.51.100.0/30
+
+
+##5. Demonstrații
+➤Am setat R1 ca DHCP Server pentru 172.25.1.0 /24 si 172.25.2.0 /24 si 192.51.100.0/30. Putem vedea rezultatul:
+
+R1(config)#do show running-config | section dhcp
+ip dhcp excluded-address 172.25.1.1 172.25.1.15
+ip dhcp excluded-address 172.25.2.1 172.25.2.99
+ip dhcp excluded-address 192.51.100.1
+ip dhcp pool 172.25.1.0/24
+ network 172.25.1.0 255.255.255.0
+ default-router 172.25.1.254
+ dns-server 1.1.1.1
+ domain-name mh.com
+ip dhcp pool 172.25.2.0/24
+ network 172.25.2.0 255.255.255.0
+ default-router 172.25.2.1
+ dns-server 1.1.1.1
+ domain-name mh.com
+ip dhcp pool 192.51.100.0/32
+ network 192.51.100.0 255.255.255.252
+
+➤Pe unul dintre laptopuri voi accesta o configurare DHCP dinamica:
+C:\>ipconfig
+FastEthernet0 Connection:(default port)
+
+   Connection-specific DNS Suffix..: 
+   Link-local IPv6 Address.........: FE80::201:42FF:FEC3:7780
+   IPv6 Address....................: ::
+   IPv4 Address....................: 0.0.0.0
+   Subnet Mask.....................: 0.0.0.0
+   Default Gateway.................: ::
+                                     0.0.0.0
+
+
+C:\>ipconfig /renew
+
+   IP Address......................: 172.25.1.16
+   Subnet Mask.....................: 255.255.255.0
+   Default Gateway.................: 172.25.1.254
+   DNS Server......................: 1.1.1.1
+
+
+
+
+➤ Voi asigna manual adresele IP pe ambele routere, folosind ultima adresă de host disponibilă pe subnet (.254). Ulterior, voi seta ruta statică pe ambele routere, astfel:
+
+Pe routerul R2: ip route 172.25.1.0 255.255.255.0 GigabitEthernet0/1
+Pe routerul R1: ip route 172.25.2.0 255.255.255.0 GigabitEthernet0/0
+
+➤ Pentru a demonstra caracteristica de configurare DHCP Client pe routerul R2, nu voi seta manual adresa 192.51.100.2. În schimb, după configurarea comenzii ip address dhcp, routerul va primi automat o adresă IP, urmând activarea interfeței cu comanda no shutdown pe interfața G0/1 a routerului R2.
+
+R2(config)#interface g0/1
+R2(config-if)#ip ad
+R2(config-if)#ip address dhcp
+R2(config-if)#no sh
+R2(config-if)#no shutdown 
+
+R2(config-if)#
+%LINK-5-CHANGED: Interface GigabitEthernet0/1, changed state to up
+
+%LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/1, changed state to up
+
+%DHCP-6-ADDRESS_ASSIGN: Interface GigabitEthernet0/1 assigned DHCP address 192.51.100.2, mask 255.255.255.252, hostname MH's R2
+
+
+➤Ulterior, pe R1 putem vedea toti clinetii DHCP care sunt asignati:
+
+R1(config)#do show ip dhcp binding
+IP address       Client-ID/              Lease expiration        Type
+                 Hardware address
+172.25.1.16      0001.42C3.7780           --                     Automatic
+172.25.1.17      00E0.B099.19CC           --                     Automatic
+192.51.100.2     00E0.8F02.0668           --                     Automatic
+
+
+➤Mai apoi, voi configura routerul R2 ca DHCP Relay Agent astfel incat sa pot permite clientilor din LAN1 (172.25.2.0/24) sa li se aloce de la DHCP Server IP-uri dinamice si alte caracteristici de retea.
+R2(config)#interface g0/0
+R2(config-if)#ip helper
+R2(config-if)#ip helper-address 192.51.100.1 
+
+
+R2(config-if)#do show ip interface g0/0
+GigabitEthernet0/0 is up, line protocol is up (connected)
+  Internet address is 172.25.2.254/24
+  Broadcast address is 255.255.255.255
+  **Helper address is 192.51.100.1**
+
+
+➤Pentru ca hosturile PC din LAN1 sa li se aloce adrese dinamice, este sufiecint sa dam comanda: 
+
+C:\>ipconfig /renew
+
+   IP Address......................: 172.25.2.100
+   Subnet Mask.....................: 255.255.255.0
+   Default Gateway.................: 172.25.2.254
+   DNS Server......................: 1.1.1.1
+
+
+   (DHCP Servers....................: 192.51.100.1)
+
+##6. Concluzii
+➤Un router poate funcționa eficient ca server DHCP în lipsa unui server dedicat, oferind alocare dinamică de adrese IP și alte informații esențiale de rețea.
+➤ Configurarea unui router ca DHCP Client permite obținerea automată a unei adrese IP de pe o altă rețea, fiind utilă în scenarii punctuale.
+➤ Utilizarea unui DHCP Relay Agent extinde funcționalitatea serverului DHCP către alte subrețele, permițând alocarea de adrese IP clienților din rețele diferite față de cea a serverului.
+➤ Configurațiile de bază precum excluderea adreselor, definirea pool-urilor și configurarea rutelor statice sunt esențiale pentru funcționarea corectă a rețelei.
+➤ Comenzile de monitorizare, cum ar fi show ip dhcp binding sau show running-config | section dhcp, sunt utile pentru verificarea rapidă a alocărilor și a setărilor curente.
