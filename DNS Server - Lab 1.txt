@@ -1,0 +1,164 @@
+MIHAI Florin-Ionut
+
+1/2 English
+#DNS Lab 1
+
+##1. Purpose and Description
+➤In this lab, I created a network that uses Cloudflare's public DNS server (1.1.1.1) to resolve domain names into IP addresses. The main goal is to demonstrate how a DNS query works and to fully simulate the name resolution process in a realistic internet connection scenario.
+
+##2. New CLI Commands Used:
+ip name-server 1.1.1.1 – Configures an external DNS server to which the R1 router will send DNS queries.
+ip host LAPTOP1 10.0.1.3 – Creates a local association between a hostname and its IP address, stored on the router.
+ip domain-lookup – Enables the DNS lookup feature on the router, allowing DNS queries to external servers.
+
+##3. Network Topology:
+2 computers (PC1 and PC2)
+1 laptop (Laptop1) – Network: 10.0.1.0/24
+1 Cisco 2960 switch
+1 Cisco 1941 router
+2 servers (including the configured DNS server)
+1 Internet emulator
+
+##4.Topology Description:
+
+➤I configured a static route between R1 and the INTERNET to allow devices in the 10.0.1.0/24 network to access the internet and DNS services. I also configured a default route to forward all unknown traffic to the exit gateway (203.0.113.2). Example routing configuration:
+
+Gateway of last resort is 203.0.113.2 to network 0.0.0.0
+
+     10.0.0.0/8 is variably subnetted, 2 subnets, 2 masks
+C       10.0.1.0/24 is directly connected, GigabitEthernet0/0
+L       10.0.1.254/32 is directly connected, GigabitEthernet0/0
+     203.0.113.0/24 is variably subnetted, 2 subnets, 2 masks
+C       203.0.113.0/30 is directly connected, GigabitEthernet0/1
+L       203.0.113.1/32 is directly connected, GigabitEthernet0/1
+S*   0.0.0.0/0 [1/0] via 203.0.113.2
+
+DNS connectivity test:
+Router#ping 1.1.1.1
+!!!!!
+Success rate is 100 percent (5/5).
+
+➤The network is configured so that all DNS requests are sent to the Cloudflare DNS server (1.1.1.1).
+On router R1, I created local hosts using the command ip host LAPTOP1 10.0.1.3, which can be verified with the show hosts command:
+
+Host                      Port  Flags      Age Type   Address(es)
+LAPTOP1                   None  (perm, OK)  0   IP      10.0.1.3
+PC1                       None  (perm, OK)  0   IP      10.0.1.2
+PC2                       None  (perm, OK)  0   IP      10.0.1.1
+R1                        None  (perm, OK)  0   IP      10.0.1.254
+
+➤For DNS resolution to work, the ip domain-lookup command must be enabled, and each host must have the DNS server address (1.1.1.1) set manually.
+
+On the DNS server in the simulation, I added the following A records:
+Name: CloudFlare → Address: 1.1.1.1
+Name: cisco-ccna.com → Address: 172.163.4.161
+
+
+##5. Demonstration
+
+➤From Laptop1, we run the command:
+ping cisco-ccna.com 
+ 
+This generates:
+A DNS query to the 1.1.1.1 server
+A DNS response from the server, resolving cisco-ccna.com to the IP address 172.163.4.161
+
+➤Example:
+C:\>ping cisco-ccna.com
+
+Pinging 172.163.4.161 with 32 bytes of data:
+
+Request timed out.
+Reply from 172.163.4.161: bytes=32 time=8ms TTL=126
+Reply from 172.163.4.161: bytes=32 time=8ms TTL=126
+Reply from 172.163.4.161: bytes=32 time=8ms TTL=126
+
+Ping statistics for 172.163.4.161:
+    Packets: Sent = 4, Received = 3, Lost = 1 (25% loss)
+    Approximate round trip times in milli-seconds:
+    Minimum = 8ms, Maximum = 8ms, Average = 8ms.
+
+
+##6. Conclusion
+➤This lab helped me understand and apply the full DNS resolution process in a network. I demonstrated the correct interaction between the client, router, and external DNS server in a simulated environment. I also understood the importance of correctly configuring routing and DNS servers to ensure efficient network functionality.
+
+2/2 Română
+#DNS Lab 1
+
+##1. Scop si descriere
+➤În acest laborator am creat o rețea care utilizează serverul DNS public Cloudflare (1.1.1.1) pentru rezolvarea numelor de domenii în adrese IP. Scopul principal este să demonstrez funcționarea unei interogări DNS și procesul complet de rezolvare a numelui, simulând un scenariu realist de conectare la internet.
+
+##2. Comenzi noi folosite in CLI:
+ip name-server 1.1.1.1 – configurează un server DNS extern către care routerul R1 va trimite interogările DNS.
+ip host LAPTOP1 10.0.1.3 – creează o asociere între un nume de host și adresa IP aferentă, stocată local în router.
+ip domain-lookup – activează funcția de căutare DNS pe router, permițând interogări către un server DNS extern.
+
+##3. Topologia de retea:
+2 calculatoare (PC1 și PC2)
+1 laptop (Laptop1) 
+1 switch Cisco 2960
+1 router Cisco 1941
+2 servere (inclusiv server DNS configurat)
+1 emulator de Internet
+
+##4.Descrierea topologiei:
+➤Am configurat o rută statică între R1 și INTERNET pentru a permite dispozitivelor din rețeaua 10.0.1.0/24 să acceseze internetul și serviciile DNS. De asemenea, am configurat o rută default pentru a redirecționa tot traficul necunoscut către gateway-ul de ieșire (203.0.113.2). Exemplu de configurare rutare:
+
+Gateway of last resort is 203.0.113.2 to network 0.0.0.0
+
+     10.0.0.0/8 is variably subnetted, 2 subnets, 2 masks
+C       10.0.1.0/24 is directly connected, GigabitEthernet0/0
+L       10.0.1.254/32 is directly connected, GigabitEthernet0/0
+     203.0.113.0/24 is variably subnetted, 2 subnets, 2 masks
+C       203.0.113.0/30 is directly connected, GigabitEthernet0/1
+L       203.0.113.1/32 is directly connected, GigabitEthernet0/1
+S*   0.0.0.0/0 [1/0] via 203.0.113.2
+
+Test conectivitate DNS:
+Router#ping 1.1.1.1
+!!!!!
+Success rate is 100 percent (5/5).
+
+➤Rețeaua este configurată astfel încât toate solicitările DNS să fie direcționate către serverul Cloudflare (1.1.1.1).
+Pe routerul R1 am creat hosturi locale cu comanda ip host LAPTOP1 10.0.1.3, ce pot fi vizualizate cu show hosts:
+
+Host                      Port  Flags      Age Type   Address(es)
+LAPTOP1                   None  (perm, OK)  0   IP      10.0.1.3
+PC1                       None  (perm, OK)  0   IP      10.0.1.2
+PC2                       None  (perm, OK)  0   IP      10.0.1.1
+R1                        None  (perm, OK)  0   IP      10.0.1.254
+
+➤Pentru ca rezolvarea DNS să funcționeze, este necesar să fie activă comanda ip domain-lookup și să setăm manual adresa serverului DNS pe fiecare dispozitiv: 1.1.1.1.
+
+➤Pe serverul DNS din simulare am adăugat următoarele înregistrări de tip A:
+Nume: CloudFlare → Adresă: 1.1.1.1
+Nume: cisco-ccna.com → Adresă: 172.163.4.161
+
+
+##5. Demonstrații
+
+➤De pe Laptop1, rulăm comanda:
+ping cisco-ccna.com
+
+Aceasta generează:
+O interogare DNS către serverul 1.1.1.1
+Un răspuns DNS din partea serverului, care rezolvă cisco-ccna.com la adresa IP 172.163.4.161
+
+➤Exemplu:
+C:\>ping cisco-ccna.com
+
+Pinging 172.163.4.161 with 32 bytes of data:
+
+Request timed out.
+Reply from 172.163.4.161: bytes=32 time=8ms TTL=126
+Reply from 172.163.4.161: bytes=32 time=8ms TTL=126
+Reply from 172.163.4.161: bytes=32 time=8ms TTL=126
+
+Ping statistics for 172.163.4.161:
+    Packets: Sent = 4, Received = 3, Lost = 1 (25% loss)
+    Approximate round trip times in milli-seconds:
+    Minimum = 8ms, Maximum = 8ms, Average = 8ms.
+
+
+##6. Concluzii
+➤Acest laborator m-a ajutat să înțeleg și să aplic procesul complet de rezolvare DNS într-o rețea. Am demonstrat interacțiunea corectă între client, router și serverul DNS extern într-un mediu simulat. De asemenea, am înțeles importanța configurării corecte a rutelor și a serverului DNS pentru funcționarea eficientă a rețelei.
