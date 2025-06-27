@@ -1,0 +1,232 @@
+MIHAI Florin-Ionut
+
+1/2 English
+#IPv6 (SLACC, Floating Static Route) - Lab 4
+
+##1. Purpose and Description
+➤The purpose of this lab is to configure an IPv6 network using various address assignment methods and to implement a redundant route to ensure traffic continuity in case of failures. Within the lab, IPv6 addresses will be configured on routers and stations using manual assignment, SLAAC, and the EUI-64 method. PCs will receive static and EUI-64 addresses, while laptops will be configured automatically via SLAAC. Static routing will be implemented between routers, with a primary route between R1 and R2 and a backup Floating Static Route through R3, using a higher Administrative Distance to ensure redundancy. Verification commands will be used to observe the correct configuration of addresses, routes, and NDP tables.
+
+##2. New CLI Commands Used:
+show ipv6 neighbor – displays the NDP table (IPv6 IP-to-MAC address mappings).
+show ipv6 interface brief – shows a summary of interfaces and their assigned IPv6 addresses.
+show ipv6 interface g0/0 – displays detailed information for the g0/0 interface, including multicast groups.
+ipv6 unicast-routing – enables forwarding and routing of IPv6 packets on the router.
+ipv6 address 2001:db8:0:25::/64 eui-64 – configures the IPv6 address using the EUI-64 method (automatic completion of the host part of the IP address).
+ipv6 address autoconfig – allows automatic configuration of the IPv6 address via SLAAC (Stateless Address Autoconfiguration).
+ipv6 enable – enables IPv6 on the interface, allowing only the link-local address to function.
+ipv6 route destination/prefix-length exit interface next-hop – sets a static IPv6 route.
+show ipv6 route – displays the router’s current IPv6 routing tab
+
+##3. Network Topology:
+2 PCs (2001:db8:0:150::/64)
+2 laptops (2001:db8:0:151::/64)
+3 routers 2911
+1 Access Point (AP)
+2 switches 2960
+
+##4.Topology Description:
+➤ The network topology consists of three interconnected Cisco 2911 routers, two PCs in the 2001:DB8:0:150::/64 network, and two laptops in the 2001:DB8:0:151::/64 network. The devices are connected through two Cisco 2960 switches, and wireless access is provided by an Access Point. The routers are configured with IPv6 addresses using different methods: manual, SLAAC, and EUI-64. The main route is established between R1 and R2, while a backup route is implemented through R3 using a floating static route for redundancy. PCs have manually configured IPv6 addresses, and laptops are automatically configured via SLAAC. The topology ensures continuity and fault tolerance through the implemented redundancy.
+
+##5. Demonstration:
+➤ For router R1, I will manually assign the IPv6 address:
+R1(config)#ipv6 unicast-routing  
+R1(config)#interface g0/0  
+R1(config-if)#ipv6 address 2001:db8:0:150::1/64  
+R1(config-if)#no shutdown  
+R1(config)#interface serial 0/2/0  
+R1(config-if)#ipv6 address 2001:db8:0:100::/64 eui-64  
+R1(config-if)#no shutdown  
+➤ Thus, R1 will have two Global Unicast Addresses (one manually set, the other via EUI-64), plus a Link-Local Address: FE80::206:2AFF:FEC5:3501.
+R1(config-if)#do show ipv6 interface brief  
+GigabitEthernet0/0         [up/up]  
+    FE80::206:2AFF:FEC5:3501  
+    2001:DB8:0:150::1  
+
+Serial0/2/0                [up/up]  
+    FE80::206:2AFF:FEC5:3501  
+    2001:DB8:0:100:206:2AFF:FEC5:3501  
+➤ We can autoconfigure interface se0/2/1 on router R2 via SLAAC, based on the fact that the network prefix is already set on R1. This autoconfiguration is done through the NDP (Neighbor Discovery Protocol) using RS/RA messages.
+R2(config)#ipv6 unicast-routing  
+R2(config)#interface se 0/2/1  
+R2(config-if)#no shutdown  
+R2(config-if)#ipv6 enable  
+R2(config-if)#ipv6 address autoconfig  
+R2(config-if)#do show ipv6 interface brief  
+
+Serial0/2/1                [up/up]  
+    FE80::20C:85FF:FEE8:5301  
+    2001:DB8:0:100:20C:85FF:FEE8:5301  
+Vlan1                      [administratively down/down]  
+    unassigned  
+➤ I will set the static route between R1 and R2 as the primary route.
+R1(config)#ipv6 route 2001:db8:0:151::/64 se 0/2/0 FE80::20C:85FF:FEE8:5301  
+R2(config)#ipv6 route 2001:db8:0:150::/64 se0/2/1 FE80::206:2AFF:FEC5:3501  
+
+R2(config)#do show ipv6 route  
+S   2001:DB8:0:150::/64 [1/0]  
+     via FE80::206:2AFF:FEC5:3501, Serial0/2/1  
+➤ To make the route between R1 - R3 - R2 redundant (Floating Static Route), I need to set the Administrative Distance (AD) to a value higher than 1, indicating lower trust compared to the primary route. For example, I will set AD = 7:
+R1(config)#ipv6 route 2001:db8:0:151::/64 se0/2/1 FE80::260:3EFF:FE62:95A7 7  
+R3(config)#ipv6 route 2001:db8:0:151::/64 se 0/2/0 FE80::20C:85FF:FEE8:5301 7  
+R3(config)#ipv6 route 2001:db8:0:150::/64 se0/2/1 FE80::206:2AFF:FEC5:3501 7  
+R2(config)#ipv6 route 2001:db8:0:150::/64 se0/2/0 E80::260:3EFF:FE62:95A7 7 
+ 
+➤ For example, the output shows that besides the primary route, I successfully set a backup route:
+R2(config)#do show running-config | include ipv6 route  
+ipv6 route 2001:DB8:0:150::/64 Serial0/2/1 FE80::206:2AFF:FEC5:3501  
+ipv6 route 2001:DB8:0:150::/64 Serial0/2/0 E80::260:3EFF:FE62:95A7 7  
+➤ Using SLAAC, I can autoconfigure the IPv6 Address + Default Gateway [using EUI-64 based on MAC Address (0030.F24A.873A)] as follows:
+
+IPv6 Address: 2001:DB8:0:151:230:F2FF:FE4A:873A /64
+Default Gateway: FE80::20C:85FF:FEE8:5303
+Link-Local: FE80::230:F2FF:FE4A:873A
+
+➤ The NDP table of router R1, along with its routes:
+R1#show ipv6 neighbor  
+IPv6 Address                              Age Link-layer Addr State Interface  
+2001:DB8:0:150::2                           4 0001.4326.C291  REACH Gig0/0  
+2001:DB8:0:150::3                           0 0003.E465.C937  REACH Gig0/0  
+
+R1#show ipv6 route  
+IPv6 Routing Table - 6 entries  
+Codes: C - Connected, L - Local, S - Static  
+C   2001:DB8:0:100::/64 [0/0]  
+     via Serial0/2/0, directly connected  
+L   2001:DB8:0:100:206:2AFF:FEC5:3501/128 [0/0]  
+     via Serial0/2/0, receive  
+C   2001:DB8:0:150::/64 [0/0]  
+     via GigabitEthernet0/0, directly connected  
+L   2001:DB8:0:150::1/128 [0/0]  
+     via GigabitEthernet0/0, receive  
+S   2001:DB8:0:151::/64 [1/0]  
+     via FE80::20C:85FF:FEE8:5301, Serial0/2/0  
+L   FF00::/8 [0/0]  
+     via Null0, receive 
+
+##6. Conclusion
+➤ The IPv6 configuration using various methods (manual, SLAAC, EUI-64) was successfully implemented, demonstrating the flexibility of IPv6 address assignment in the network.
+➤ PCs received static and EUI-64 generated addresses, while laptops were automatically configured via SLAAC, highlighting how devices can handle IPv6 addressing both automatically and manually.
+➤ Static routing between routers was efficiently implemented, with a stable primary route between R1 and R2 and a backup route configured as a Floating Static Route via R3, ensuring traffic continuity and fault tolerance.
+➤ Managing the Administrative Distance (AD) allowed prioritization of routes, guaranteeing the use of the primary route and automatic failover to the backup route in case of failure.
+➤ The use of IPv6 verification commands (show ipv6 neighbor, show ipv6 route, show ipv6 interface brief) facilitated monitoring and troubleshooting of the configurations.
+➤ The implementation of NDP (Neighbor Discovery Protocol) and SLAAC autoconfiguration simplified address management in IPv6 networks.
+
+2/2 Română
+#IPv6 (SLACC, Floating Static Route) - Lab 4
+
+##1. Scop si descriere
+➤Scopul acestui laborator este configurarea unei rețele IPv6 folosind metode diverse de atribuire a adreselor și implementarea unei rute redundante pentru a asigura continuitatea traficului în caz de defecțiuni. În cadrul laboratorului, se vor configura adrese IPv6 pe routere și stații utilizând atribuirea manuală, SLAAC și metoda EUI-64. PC-urile vor primi adrese statice și prin EUI-64, iar laptopurile vor fi configurate automat prin SLAAC. Se va implementa rutare statică între routere, cu o rută principală între R1 și R2 și o rută de backup (Floating Static Route) prin R3, cu un AD crescut pentru a asigura redundanța. Se vor utiliza comenzi de verificare pentru a observa configurarea corectă a adreselor, rutelor și tabelelor NDP.
+
+##2. Comenzi noi folosite in CLI:
+show ipv6 neighbor – afișează tabela NDP (asocierile IP-MAC pentru IPv6).
+show ipv6 interface brief – afișează sumarul interfețelor și adresele IPv6 asignate.
+show ipv6 interface g0/0 – afișează detalii complete pentru interfața g0/0, inclusiv grupurile multicast.
+ipv6 unicast-routing – activează trimiterea și rutarea pachetelor IPv6 pe router.
+ipv6 address 2001:db8:0:25::/64 eui-64 – configurează adresa IPv6 folosind metoda EUI-64 (completare automată a părții de host din adresa IP).
+ipv6 address autoconfig – permite configurarea automată a adresei IPv6 prin SLAAC (Stateless Address Autoconfiguration).
+ipv6 enable – activează IPv6 pe interfață, permițând doar adresa link-local să funcționeze.
+ipv6 route destination/prefix-length exit interface next-hop – setează o rută statică IPv6.
+show ipv6 route – afișează tabela de rutare IPv6 curentă a routerului.
+
+##3. Topologia de retea:
+2 PC-uri (2001:db8:0:150::/64)
+2 laptop-uri (2001:db8:0:151::/64)
+3 routere 2911
+1 AP
+2 switch-uri 2960
+
+##4.Descrierea topologiei:
+➤Topologia rețelei este formată din trei routere Cisco 2911 interconectate, două PC-uri în rețeaua 2001:DB8:0:150::/64 și două laptopuri în rețeaua 2001:DB8:0:151::/64. Dispozitivele sunt conectate prin două switch-uri Cisco 2960, iar accesul wireless este asigurat de un Access Point. Routerele sunt configurate cu adrese IPv6 folosind metode diferite: manual, SLAAC și EUI-64. Ruta principală este stabilită între R1 și R2, iar ruta de rezervă este realizată prin R3 utilizând o rută statică flotantă pentru redundanță. PC-urile au adrese IPv6 configurate manual, iar laptopurile se autoconfigurează prin SLAAC. Topologia asigură continuitate și toleranță la defecțiuni prin redundanța implementată.
+
+##5. Demonstrații
+➤ Pentru routerul R1 voi asigna manual adresa IPv6:
+R1(config)#ipv6 unicast-routing 
+R1(config)#interface g0/0
+R1(config-if)#ipv6 ad
+R1(config-if)#ipv6 address 2001:db8:0:150::1/64
+R1(config-if)#no shutdown 
+R1(config)#interface serial 0/2/0
+R1(config-if)#ipv6 address 2001:db8:0:100::/64 eui-64 
+R1(config-if)#no shutdown
+.
+➤Astfel, R1 va avea doua Global Unicast Addresses (una setata manual, alta cu ajutorul EUI-64), si Link Local Address: FE80::206:2AFF:FEC5:3501.
+
+R1(config-if)#do show ipv6 interface brief
+GigabitEthernet0/0         [up/up]
+    FE80::206:2AFF:FEC5:3501
+    2001:DB8:0:150::1
+
+Serial0/2/0                [up/up]
+    FE80::206:2AFF:FEC5:3501
+    2001:DB8:0:100:206:2AFF:FEC5:3501
+
+➤ Putem autoconfigura interfața se0/2/1 a routerului R2 prin intermediul SLAAC, bazându-ne pe faptul că prefixul de rețea a fost deja setat pe R1. Această autoconfigurare se face cu ajutorul protocolului NDP (Neighbor Discovery Protocol), prin intermediul mesajelor RS/RA.
+
+R2(config)#ipv6 unicast-routing 
+R2(config)#interface se 0/2/1
+R2(config-if)#no shutdown 
+R2(config-if)#ipv6 enable 
+R2(config-if)#ipv6 address autoconfig 
+R2(config-if)#do show ipv6 interface brief
+
+Serial0/2/1                [up/up]
+    FE80::20C:85FF:FEE8:5301
+    2001:DB8:0:100:20C:85FF:FEE8:5301
+Vlan1                      [administratively down/down]
+    unassigned
+
+➤Voi seta ruta statica intre R1 si R2 ca fiind principala. 
+R1(config)#ipv6 route 2001:db8:0:151::/64 se 0/2/0 FE80::20C:85FF:FEE8:5301
+R2(config)#ipv6 route 2001:db8:0:150::/64 se0/2/1 FE80::206:2AFF:FEC5:3501
+
+R2(config)#do show ipv6 route
+S   2001:DB8:0:150::/64 [1/0]
+     via FE80::206:2AFF:FEC5:3501, Serial0/2/1
+
+➤ Pentru a face ruta dintre R1 - R3 - R2 redundantă (Floating Static Route), este necesar să setez AD-ul (Administrative Distance) la o valoare mai mare decât 1, pentru a avea o încredere „mai mică” față de ruta principală. De exemplu, voi seta AD = 7:
+
+R1(config)#ipv6 route 2001:db8:0:151::/64 se0/2/1 FE80::260:3EFF:FE62:95A7 7
+R3(config)#ipv6 route 2001:db8:0:151::/64 se 0/2/0 FE80::20C:85FF:FEE8:5301 7
+R3(config)#ipv6 route 2001:db8:0:150::/64 se0/2/1 FE80::206:2AFF:FEC5:3501 7
+R2(config)#ipv6 route 2001:db8:0:150::/64 se0/2/0 E80::260:3EFF:FE62:95A7 7
+
+➤ De exemplu, în outputul comenzii se poate vedea că am reușit să setez, pe lângă ruta principală, și o rută de backup:
+R2(config)#do show running-config | include ipv6 route
+ipv6 route 2001:DB8:0:150::/64 Serial0/2/1 FE80::206:2AFF:FEC5:3501
+ipv6 route 2001:DB8:0:150::/64 Serial0/2/0 E80::260:3EFF:FE62:95A7 7
+
+➤Folosindu-ma de SLACC voi putea autoconfigura IPv6 Address + Default Gateway [cu ajutorul EUI-64 si bazand-ma pe MAC Address (0030.F24A.873A) ], astfel:
+IPv6 Address: 2001:DB8:0:151:230:F2FF:FE4A:873A /64
+Default Gateway: FE80::20C:85FF:FEE8:5303
+Link-Local: FE80::230:F2FF:FE4A:873A
+
+➤Tabela NDP a routerului R1, precum si rutele acestuia:
+R1#show ipv6 neighbor
+IPv6 Address                              Age Link-layer Addr State Interface
+2001:DB8:0:150::2                           4 0001.4326.C291  REACH Gig0/0
+2001:DB8:0:150::3                           0 0003.E465.C937  REACH Gig0/0
+
+R1#show ipv6 route
+IPv6 Routing Table - 6 entries
+Codes: C - Connected, L - Local, S - Static
+C   2001:DB8:0:100::/64 [0/0]
+     via Serial0/2/0, directly connected
+L   2001:DB8:0:100:206:2AFF:FEC5:3501/128 [0/0]
+     via Serial0/2/0, receive
+C   2001:DB8:0:150::/64 [0/0]
+     via GigabitEthernet0/0, directly connected
+L   2001:DB8:0:150::1/128 [0/0]
+     via GigabitEthernet0/0, receive
+S   2001:DB8:0:151::/64 [1/0]
+     via FE80::20C:85FF:FEE8:5301, Serial0/2/0
+L   FF00::/8 [0/0]
+     via Null0, receive
+
+##6. Concluzii
+➤Configurarea IPv6 prin metode diverse (manuală, SLAAC, EUI-64) a fost implementată cu succes, demonstrând flexibilitatea atribuirii adreselor IPv6 în rețea.
+➤PC-urile au primit adrese statice și generate cu EUI-64, iar laptopurile s-au configurat automat prin SLAAC, evidențiind modul în care dispozitivele pot gestiona automat sau manual adresarea IPv6.
+➤Rutarea statică între routere a fost realizată eficient, cu o rută principală stabilă între R1 și R2 și o rută de backup configurată ca Floating Static Route prin R3, ceea ce asigură continuitatea traficului și toleranță la defecțiuni.
+➤Administrarea distanței administrative (AD) a permis prioritizarea rutelor, garantând folosirea rutei principale și comutarea automată pe ruta de rezervă în caz de avarie.
+➤Utilizarea comenzilor de verificare IPv6 (show ipv6 neighbor, show ipv6 route, show ipv6 interface brief) a facilitat monitorizarea și diagnosticarea corectitudinii configurațiilor.
+➤Implementarea NDP (Neighbor Discovery Protocol) și autoconfigurarea prin SLAAC au simplificat managementul adreselor în rețelele IPv6.
+Topologia implementată, cu echipamente Cisco și diverse tipuri de dispozitive, reflectă un scenariu realist de rețea cu redundanță și configurare avansată IPv6.
