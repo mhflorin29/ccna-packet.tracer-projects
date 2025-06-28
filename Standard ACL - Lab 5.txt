@@ -1,0 +1,199 @@
+MIHAI Florin-Ionut
+
+1/2 English
+#Standard ACL - Lab 5
+
+##1. Purpose and Description
+➤The purpose of this work is to configure network traffic filtering policies using Standard Access Control Lists (Standard ACLs) to control and secure communication between network devices according to defined requirements.
+
+In the proposed topology, the network is preconfigured with dynamic routing (OSPF), ensuring connectivity between all subnets. To efficiently manage traffic and implement access rules, Standard Access Control Lists (ACLs) are used.
+
+The DNS server (10.0.10.1) is configured on all devices, allowing name resolution through A records to access network equipment based on their names (e.g., ping pc3). The Web server (10.0.10.2) is available at the domain ccna-cisco.com and can be accessed according to the defined rules.
+
+The traffic policies to be implemented are as follows:
+✅ Only PC1 (10.0.5.1) can access the 10.0.15.0/24 network.
+✅ Laptop L1 (10.0.15.1) is not allowed to access PC3 (10.0.0.1).
+✅ Only PC3 (10.0.0.1) is permitted to access the 10.0.10.0/24 network.
+
+For implementation, Standard ACLs will be configured and correctly applied on the router interfaces to control traffic based on the source of the packets.
+
+##2. New CLI Commands Used:
+R1(config)#ip access-list standard 1 – creates a standard access list with the number 1.
+R1(config-std-nacl)#permit host 10.0.5.1 – allows traffic from the IP address 10.0.5.1.
+R1(config-std-nacl)#deny 10.0.5.0 0.0.0.255 – blocks traffic from the 10.0.5.0/24 network (all other devices in the network).
+R1(config-std-nacl)#permit any – allows traffic from any other IP address.
+R1(config)#interface g0/1 – enter the GigabitEthernet0/1 interface.
+R1(config-if)#ip access-group 1 out – apply the ACL to the outbound traffic on the g0/1 interface.
+
+##3. Network Topology:
+2 laptops in the 10.0.15.0/24 subnet
+2 PCs in the 10.0.5.0/24 subnet
+1 PC in the 10.0.0.0/24 subnet
+1 web server & DNS server in the 10.0.10.0/24 subnet
+2 Cisco 2911 routers
+4 Cisco 2960 switches
+
+##4.Topology Description:
+➤ The network topology includes two Cisco 2911 routers, four Cisco 2960 switches, two laptops, three PCs, and two servers. The devices are divided into four subnets:
+
+10.0.15.0/24 – two laptops
+10.0.5.0/24 – two PCs
+10.0.0.0/24 – one PC
+10.0.10.0/24 – DNS server and web server
+
+All devices use the DNS server 10.0.10.1, and the web server is accessible at the domain ccna-cisco.com. Connectivity is ensured via OSPF routing, and traffic security is implemented using Standard Access Control Lists (ACLs).
+
+##5. Demonstration:
+➤ Important to remember (!)
+A Standard ACL is recommended to be applied as close as possible to the destination.
+Traffic filtering with Standard ACL is based exclusively on the source IP address, which makes it less precise compared to an Extended ACL.
+If a Standard ACL is applied too close to the source, there is a risk of blocking more traffic than necessary, affecting other connections as well.
+To avoid unintended traffic blocking, Standard ACLs are usually applied on the outbound interface, as close as possible to the destination.
+
+➤ PC1 (10.0.5.1) from the 10.0.5.0/24 network can access the 10.0.15.0/24 network. PC2 cannot access the 10.0.15.0/24 network. (we apply on the G0/1 interface of R1):
+
+R1(config)#ip access-list standard 1  
+R1(config-std-nacl)#permit host 10.0.5.1  
+R1(config-std-nacl)#deny 10.0.5.0 0.0.0.255  
+R1(config-std-nacl)#permit any  
+R1(config-std-nacl)#exit  
+R1(config)#interface g0/1  
+R1(config-if)#ip access-group 1 out  
+➤ L1 (10.0.15.1) from the 10.0.15.0/24 network cannot access PC3 (10.0.0.1). L2 should be able to access PC3.
+
+R2(config)#ip access-list standard 1  
+R2(config-std-nacl)#deny host 10.0.15.1  
+R2(config-std-nacl)#permit any  
+R2(config-std-nacl)#exit  
+R2(config)#interface g0/1  
+R2(config-if)#ip access-group 1 out  
+➤ Only PC3 can access the 10.0.10.0/24 network. The other devices from the other networks cannot.
+
+R1(config)#ip access-list standard 2  
+R1(config-std-nacl)#permit 10.0.0.1 0.0.0.0  
+R1(config-std-nacl)#deny any  
+R1(config-std-nacl)#exit  
+R1(config)#interface g0/2  
+R1(config-if)#ip access-group 2 out  
+
+➤ Using the #show access-lists command, we can view the applied configurations and the entries from each ACL:
+R2#show access-lists  
+Standard IP access list 1  
+    10 deny host 10.0.15.1 (8 match(es))  
+    20 permit any (7 match(es))  
+
+R1#show access-lists  
+Standard IP access list 1  
+    10 permit host 10.0.5.1 (4 match(es))  
+    20 deny 10.0.5.0 0.0.0.255 (4 match(es))  
+    30 permit any (16 match(es))  
+Standard IP access list 2  
+    10 permit host 10.0.0.1 (4 match(es))  
+    20 deny any (8 match(es))  
+
+##6. Conclusion
+➤ The network traffic filtering policies were successfully implemented using Standard Access Control Lists (Standard ACLs), in accordance with the defined access requirements.
+➤ The Standard ACLs were correctly applied on the outbound interfaces, as close as possible to the destination, to avoid unnecessary blocking of other types of traffic.
+➤ The filtering was done exclusively based on the source IP address, as per the characteristics of Standard ACLs.
+➤ The configuration allowed specific access control for each scenario.
+
+1/2 Romana
+
+##1. Scop si descriere
+➤Scopul acestei lucrări este de a configura politici de filtrare a traficului în rețea, folosind liste de acces standard (Standard ACLs), pentru a controla și securiza comunicarea între dispozitivele din rețea, conform cerințelor definite.
+
+În topologia propusă, rețeaua este preconfigurată cu rute dinamice (OSPF), asigurând conectivitatea între toate subrețelele. Pentru o gestionare eficientă a traficului și pentru implementarea unor reguli de acces, se utilizează liste de control al accesului (ACL-uri standard).
+
+Serverul DNS (10.0.10.1) este configurat pe toate dispozitivele, permițând rezolvarea numelor prin înregistrări de tip A, pentru a accesa echipamentele din rețea pe baza numelor (ex: ping pc3). Serverul Web (10.0.10.2) este disponibil la domeniul ccna-cisco.com și poate fi accesat în funcție de regulile definite.
+
+Politicile de trafic care vor fi implementate sunt următoarele:
+✅ Doar PC1 (10.0.5.1) poate accesa rețeaua 10.0.15.0/24.
+✅ Laptopul L1 (10.0.15.1) nu are voie să acceseze PC3 (10.0.0.1).
+✅ Doar PC3 (10.0.0.1) are permisiunea să acceseze rețeaua 10.0.10.0/24.
+
+Pentru implementare, se vor configura Standard ACLs aplicate corect pe interfețele routerelor, astfel încât să se controleze traficul în funcție de sursa pachetelor.
+
+##2. Comenzi noi folosite in CLI:
+
+R1(config)#ip access-list standard 1 – creează o listă de acces standard cu numărul 1.
+R1(config-std-nacl)#permit host 10.0.5.1 – permite traficul de la adresa IP 10.0.5.1.
+R1(config-std-nacl)#deny 10.0.5.0 0.0.0.255 – blochează traficul din rețeaua 10.0.5.0/24 (toți ceilalți din rețea).
+R1(config-std-nacl)#permit any – permite traficul de la orice altă adresă IP.
+R1(config)#interface g0/1 – intri pe interfața GigabitEthernet0/1.
+R1(config-if)#ip access-group 1 out – aplici ACL-ul pe traficul care iese prin interfața g0/1.
+
+##3. Topologia de retea:
+2 laptop-uri in subreteaua 10.0.15.0/24
+2 pc-uri in subreteaua 10.0.5.0/24
+1 pc in subreteaua 10.0.0.0/24
+1 web server&dns server in subreteaua 10.0.10.0/24
+2 routere 2911
+4 switch-uri 2960
+
+##4.Descrierea topologiei:
+➤Topologia rețelei include două routere Cisco 2911, patru switch-uri Cisco 2960, două laptopuri, trei PC-uri și două servere. Dispozitivele sunt împărțite în patru subrețele:
+10.0.15.0/24 – două laptopuri
+10.0.5.0/24 – două PC-uri
+10.0.0.0/24 – un PC
+10.0.10.0/24 – server DNS și server web
+
+Toate dispozitivele folosesc serverul DNS 10.0.10.1, iar serverul web este accesibil la domeniul ccna-cisco.com. Conectivitatea este asigurată prin rute OSPF, iar securizarea traficului se face cu liste de acces standard (ACL).
+
+##5. Demonstrații
+➤Important de reținut (!)
+Standard ACL este recomandat să fie aplicat cât mai aproape de destinație.
+Filtrarea traficului cu Standard ACL se face exclusiv pe baza adresei IP sursă, ceea ce o face mai puțin precisă comparativ cu o Extended ACL.
+Dacă Standard ACL ar fi aplicată prea aproape de sursă, există riscul să blocăm mai mult trafic decât este necesar, afectând și alte conexiuni.
+Pentru a evita blocarea neintenționată a traficului, Standard ACL-urile se aplică de obicei pe interfața de ieșire (outbound), cât mai aproape de destinație.
+
+➤ PC1 (10.0.5.1) din reteaua 10.0.5.0/24 poate accesa 10.0.15.0/24. PC2 nu poate accesa 10.0.15.0/24. (aplicam pe interfata G0/1 a lui R1):
+R1(config)#ip access-list standard 1
+R1(config-std-nacl)#permit host 10.0.5.1
+R1(config-std-nacl)#deny 10.0.5.0 0.0.0.255
+R1(config-std-nacl)#permit any
+R1(config-std-nacl)#exit
+R1(config)#interface g0/1
+R1(config-if)#ip access-group 1 out
+
+➤ L1 (10.0.15.1) din reteaua 10.0.15.0/24 nu poate accesa PC3 (10.0.0.1).  L2 ar trebui sa poata acceseze PC3.
+R2(config)#ip access-list sta
+R2(config)#ip access-list standard 1
+R2(config-std-nacl)#deny host 10.0.15.1
+R2(config-std-nacl)#permit any
+R2(config-std-nacl)#exit
+R2(config)#interface g0/1
+R2(config-if)#ip access-group 1 out
+
+
+➤ Doar PC3 poate accesa reteaua 10.0.10.0/24. Restul dispozitivelor din celelalte retele nu pot.
+
+R1(config)#ip access-list standard 2
+R1(config-std-nacl)#per
+R1(config-std-nacl)#permit 10.0.0.1 0.0.0.0
+R1(config-std-nacl)#deny any
+R1(config-std-nacl)#exit
+R1(config)#interface g0/2
+R1(config-if)#ip access-group 2 out
+
+
+-Cu comanda #show access-lists putem vedea configuratiile aplicate si intrarile din fiecare ACL:
+R2#show access-lists
+Standard IP access list 1
+    10 deny host 10.0.15.1 (8 match(es))
+    20 permit any (7 match(es))
+
+R1#show access-lists 
+Standard IP access list 1
+    10 permit host 10.0.5.1 (4 match(es))
+    20 deny 10.0.5.0 0.0.0.255 (4 match(es))
+    30 permit any (16 match(es))
+Standard IP access list 2
+    10 permit host 10.0.0.1 (4 match(es))
+    20 deny any (8 match(es))
+
+
+##6. Concluzii
+➤Politicile de filtrare a traficului în rețea au fost implementate cu succes folosind liste de acces standard (Standard ACLs), respectând cerințele de acces definite.
+➤ Standard ACL-urile au fost aplicate corect, pe interfețele de ieșire (outbound), cât mai aproape de destinație, pentru a evita blocarea inutilă a altor tipuri de trafic.
+➤ Filtrarea s-a realizat exclusiv pe baza adresei IP sursă, conform caracteristicilor Standard ACL.
+➤ Configurația a permis controlul accesului specific pentru fiecare scenariu.
