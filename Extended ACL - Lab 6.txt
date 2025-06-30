@@ -1,0 +1,272 @@
+MIHAI Florin-Ionut
+
+1/2 English
+#Extended ACL - Lab 6
+
+##1. Purpose and Description
+➤ The purpose of this lab is to understand and apply Extended Access Control Lists (Extended ACLs) to filter network traffic based on source IP address, destination IP address, specific protocols, and ports. We will learn how to correctly configure extended ACLs to precisely control access to certain resources and services in the network, applying rules as close as possible to the source of the traffic to optimize bandwidth usage.
+
+##2. New CLI Commands Used:
+R2(config)#ip access-list extended BLOCK_10.0.5.0/24 → creates an extended access list named BLOCK_10.0.5.0/24.
+R2(config-ext-nacl)#deny ip 10.0.5.0 0.0.0.255 host 10.0.0.1 → blocks all IP traffic from network 10.0.5.0/24 to host 10.0.0.1.
+R2(config-ext-nacl)#permit ip any any → permits all other traffic that does not match the previous rule.
+R2(config-ext-nacl)#exit → exits ACL configuration mode.
+R2(config)#interface g0/2 → enters configuration mode for router interface g0/2.
+R2(config-if)#ip access-group BLOCK_10.0.5.0/24 in → applies the BLOCK_10.0.5.0/24 ACL to the incoming traffic on interface g0/2.
+
+##3. Network Topology:
+2 laptops in the 10.0.15.0/24 subnet
+2 PCs in the 10.0.5.0/24 subnet
+2 PCs in the 10.0.0.0/24 subnet
+1 web server & DNS server in the 10.0.10.0/24 subnet
+2 Cisco 2911 routers
+4 Cisco 2960 switches
+
+##4.Topology Description:
+➤ The network topology includes two Cisco 2911 routers, four Cisco 2960 switches, two laptops, three PCs, and two servers. The devices are divided into four subnets:
+
+10.0.15.0/24 – two laptops
+10.0.5.0/24 – two PCs
+10.0.0.0/24 – two PCs
+10.0.10.0/24 – DNS server and web server
+
+All devices use the DNS server 10.0.10.1, and the web server is accessible at the domain ccna-cisco.com. Connectivity is ensured via OSPF routing, and traffic security is implemented using Extended Access Control Lists (ACLs).
+
+##5. Demonstration:
+➤ Important to remember (!):
+Since Extended ACLs filter traffic based on Source/Destination IP Address and Source/Destination Protocol/Port, they are very precise, providing more exact traffic filtering compared to Standard ACLs. Therefore, to avoid wasting bandwidth by transporting packets close to their destination only to have them "dropped," it is recommended to apply this filtering on a router interface as close as possible to the traffic source.
+
+➤ Hosts from 10.0.5.0/24 cannot communicate with PC3.
+
+Configuration:
+R2(config)#ip access-list extended BLOCK_10.0.5.0/24
+R2(config-ext-nacl)#deny ip 10.0.5.0 0.0.0.255 host 10.0.0.1
+R2(config-ext-nacl)#permit ip any any 
+R2(config-ext-nacl)#exit
+R2(config)#interface g0/2
+R2(config-if)#ip access-group BLOCK_10.0.5.0/24 in
+
+➤Example:
+From PC1, communication with PC3 is blocked:
+C:\>ping 10.0.0.1
+Reply from 10.0.5.254: Destination host unreachable.
+
+Ping statistics for 10.0.0.1:
+    Packets: Sent = 4, Received = 0, Lost = 4 (100% loss)
+However, communication from PC1 to PC0 is possible.
+
+➤ Host PC1 from 10.0.5.0 cannot communicate with hosts in the 10.0.15.0/24 network. PC2 can still communicate with 10.0.15.0/24.
+
+Configuration:
+R2(config)#ip access-list extended BLOCK_PC1_to_10.0.15.0/24_IP
+R2(config-ext-nacl)#deny ip host 10.0.5.1 10.0.15.0 0.0.0.255
+R2(config-ext-nacl)#permit ip any any 
+R2(config-ext-nacl)#exit
+R2(config)#interface g0/2
+R2(config-if)#ip access-group BLOCK_PC1_to_10.0.15.0/24_IP in
+➤Example:
+PC1 cannot communicate with any device in 10.0.15.0/24:
+C:\>ping 10.0.15.1
+Reply from 10.0.5.254: Destination host unreachable.
+
+C:\>ping 10.0.15.2
+Reply from 10.0.5.254: Destination host unreachable.
+➤ PC1 cannot access HTTP or HTTPS services on SRV_WEB.
+Before blocking access to http://ccna-cisco.com, from PC1 we see this message, indicating that a TCP connection on ports 80 and 443 is possible: 'Welcome to Cisco Packet Tracer. Opening doors to new opportunities. Mind Wide Open.'
+
+Configuration:
+R2(config)#ip access-list extended BLOCK_PC1_HTTP&HTTPS
+R2(config-ext-nacl)#deny tcp 10.0.5.1 0.0.0.0 host 10.0.10.2 eq 80
+R2(config-ext-nacl)#deny tcp 10.0.5.1 0.0.0.0 host 10.0.10.2 eq 443
+R2(config-ext-nacl)#permit ip any any 
+R2(config-ext-nacl)#exit
+R2(config)#interface g0/2
+R2(config-if)#ip access-group BLOCK_PC1_HTTP&HTTPS in
+After applying the restriction, accessing the site from PC1 returns: 'Request Timeout'
+
+➤ PC2 cannot access the DNS service on SRV_DNS.
+Before blocking access, from PC2 we can resolve hostnames:
+C:\>ping pc1
+Pinging 10.0.5.1 with 32 bytes of data:
+Ping statistics for 10.0.5.1:
+    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss)
+Configuration:
+R2(config)#ip access-list extended BLOCK_PC2_DNS
+R2(config-ext-nacl)#deny tcp host 10.0.5.2 host 10.0.10.1 eq 53
+R2(config-ext-nacl)#deny udp host 10.0.5.2 host 10.0.10.1 eq 53
+R2(config-ext-nacl)#permit ip any any
+R2(config-ext-nacl)#exit
+R2(config)#interface g0/2
+R2(config-if)#ip access-group BLOCK_PC2_DNS in
+After applying the restriction:
+C:\>ping pc1
+Ping request could not find host pc1. Please check the name and try again.
+
+C:\>ping srv_dns
+Ping request could not find host srv_dns. Please check the name and try again.
+➤ We can view the Extended ACL configurations on R2:
+R2#show access-lists 
+Extended IP access list BLOCK_10.0.5.0/24
+    10 deny ip 10.0.5.0 0.0.0.255 host 10.0.0.1 (11 match(es))
+    20 permit ip any any (4 match(es))
+
+Extended IP access list BLOCK_PC1_to_10.0.15.0/24_IP
+    10 deny ip host 10.0.5.1 10.0.15.0 0.0.0.255 (8 match(es))
+    20 permit ip any any (15 match(es))
+
+Extended IP access list BLOCK_PC1_HTTP&HTTPS
+    10 deny tcp host 10.0.5.1 host 10.0.10.2 eq www (12 match(es))
+    20 deny tcp host 10.0.5.1 host 10.0.10.2 eq 443
+    30 permit ip any any (2 match(es))
+
+Extended IP access list BLOCK_PC2_DNS
+    10 deny tcp host 10.0.5.2 host 10.0.10.1 eq domain
+    20 deny udp host 10.0.5.2 host 10.0.10.1 eq domain (8 match(es))
+    30 permit ip any any (1 match(es))
+
+##6. Conclusion
+➤ Extended ACLs are more effective than standard ones because they allow detailed filtering, not just based on source IP address.
+➤ It is important to apply Extended ACLs as close as possible to the source of the traffic to avoid wasting bandwidth with packets that will be blocked anyway.
+➤ Through the configurations made, we demonstrated that:
+  We can completely block communication between certain hosts or networks.
+  We can restrict access to specific services, such as HTTP, HTTPS, or DNS.
+➤ We practically observed that when a service or destination is blocked, devices receive messages like "Destination host unreachable" or "Request Timeout," confirming that the filters have been correctly applied
+
+1/2 Romana
+
+##1. Scop si descriere
+➤Scopul acestui laborator este de a înțelege și aplica listele de control al accesului extinse (Extended ACL) pentru a filtra traficul de rețea în funcție de adresa IP sursă, adresa IP destinație, protocoale și porturi specifice. Vom învăța să configurăm corect ACL-urile extinse pentru a controla precis accesul la anumite resurse și servicii din rețea, aplicând regulile cât mai aproape de sursa traficului pentru a optimiza utilizarea lățimii de bandă.
+
+
+##2. Comenzi noi folosite in CLI:
+R2(config)#ip access-list extended BLOCK_10.0.5.0/24 → creează o listă de acces extinsă numită BLOCK_10.0.5.0/24.
+R2(config-ext-nacl)#deny ip 10.0.5.0 0.0.0.255 host 10.0.0.1 → blochează orice tip de trafic IP de la rețeaua 10.0.5.0/24 către hostul 10.0.0.1.
+R2(config-ext-nacl)#permit ip any any → permite orice alt trafic care nu se potrivește cu regula anterioară.
+R2(config-ext-nacl)#exit → iese din configurarea ACL-ului.
+R2(config)#interface g0/2 → intră în configurarea interfeței g0/2 a routerului.
+R2(config-if)#ip access-group BLOCK_10.0.5.0/24 in → aplică ACL-ul BLOCK_10.0.5.0/24 pe interfața g0/2 pentru traficul care intră.
+
+##3. Topologia de retea:
+2 laptop-uri in subreteaua 10.0.15.0/24
+2 pc-uri in subreteaua 10.0.5.0/24
+2 pc-uri in subreteaua 10.0.0.0/24
+1 web server&dns server in subreteaua 10.0.10.0/24
+2 routere 2911
+4 switch-uri 2960
+
+##4.Descrierea topologiei:
+➤Topologia rețelei include două routere Cisco 2911, patru switch-uri Cisco 2960, două laptopuri, trei PC-uri și două servere. Dispozitivele sunt împărțite în patru subrețele:
+10.0.15.0/24 – două laptopuri
+10.0.5.0/24 – două PC-uri
+10.0.0.0/24 – doua PC-uri
+10.0.10.0/24 – server DNS și server web
+
+Toate dispozitivele folosesc serverul DNS 10.0.10.1, iar serverul web este accesibil la domeniul ccna-cisco.com. Conectivitatea este asigurată prin rute OSPF, iar securizarea traficului se face cu Extended ACL.
+
+##5. Demonstrații
+➤Important de retinut(!):
+Deoarece pentru Extended ACL filtrarea traficului se face pe baza de Source/Destination IP Address, Source/Destination Protocol/Port, acesta este foarte precis, filtrarea traficului facandu-se mai exact decat in cazul Standard ACL. De accea, pentru a nu face rispia de latime de banda transportand pana aproape de destinatie un pachet de date care oricum va fi "aruncat" ("dropped") este recomandat sa aplicam aceasta filtrare pe o interfata a routerului cat mai aproape de adresa sursa IP.
+
+➤Hosturile din 10.0.5.0/24 nu pot comunica cu PC3.
+
+R2(config)#ip access-list extended BLOCK_10.0.5.0/24
+R2(config-ext-nacl)#deny ip 10.0.5.0 0.0.0.255 host 10.0.0.1
+R2(config-ext-nacl)#permit ip any any 
+R2(config-ext-nacl)#exit
+R2(config)#interface g0/2
+R2(config-if)#ip access-group BLOCK_10.0.5.0/24 in
+
+➤De exemplu, de pe PC1 comunicarea cu PC3 este blocata:
+C:\>ping 10.0.0.1
+
+Reply from 10.0.5.254: Destination host unreachable.
+
+Ping statistics for 10.0.0.1:
+    Packets: Sent = 4, Received = 0, Lost = 4 (100% loss)
+
+➤Totusi, tot de pe PC1, comunicarea cu PC0 se poate realiza.
+
+➤Hostul PC1 din 10.0.5.0 nu poate comunica cu hosturile din 10.0.15.0/24. In schimb, PC2 poate comunica cu reteaua 10.0.15.0/24.
+
+R2(config)#ip access-list extended BLOCK_PC1_to_10.0.15.0/24_IP
+R2(config-ext-nacl)#deny ip host 10.0.5.1 10.0.15.0 0.0.0.255
+R2(config-ext-nacl)#permit ip any any 
+R2(config-ext-nacl)#exit
+R2(config)#interface g0/2
+R2(config-if)#ip access-group BLOCK_PC1_to_10.0.15.0/24_IP in
+
+➤Deci, PC1 nu poate comunica nu niciun dispozitiv din 10.0.15.0/24:
+
+C:\>ping 10.0.15.1
+
+Pinging 10.0.15.1 with 32 bytes of data:
+Reply from 10.0.5.254: Destination host unreachable.
+Packets: Sent = 4, Received = 0, Lost = 4 (100% loss),
+
+C:\>ping 10.0.15.2
+
+Pinging 10.0.15.2 with 32 bytes of data:
+Reply from 10.0.5.254: Destination host unreachable.
+Packets: Sent = 4, Received = 0, Lost = 4 (100% loss)
+
+➤PC1 nu poate accesa serviciile HTTP sau HTTPS de pe SRV_WEB.
+Inainte de a bloca accesul catre site-ul http://ccna-cisco.com, de pe PC1 ne apare acest mesaj, semn ca se poate stabili o conexiune TCP pe porturile 80 si 443: 'Welcome to Cisco Packet Tracer. Opening doors to new opportunities. Mind Wide Open.'
+
+R2(config)#ip access-list extended BLOCK_PC1_HTTP&HTTPS
+R2(config-ext-nacl)#deny tcp 10.0.5.1 0.0.0.0 host 10.0.10.2 eq 80
+R2(config-ext-nacl)#deny tcp 10.0.5.1 0.0.0.0 host 10.0.10.2 eq 443
+R2(config-ext-nacl)#permit ip any any 
+R2(config-ext-nacl)#exit
+R2(config)#interface g0/2
+R2(config-if)#ip access-group BLOCK_PC1_HTTP&HTTPS in
+
+➤Dupa ce restrictionam accesul, la accesarea site-ului http://ccna-cisco.com de pe PC1, ne va aparea mesajul: 'Request Timeout'
+
+➤PC2 nu poate accesa serviciul DNS de pe serverul SRV_DNS.
+Inainte de a bloca accesul catre SRV-DNS, de pe PC2 putem folosi aceasta caracteristica de a comunica cu celelalte hosturi folosind numele in loc de adresa IP, de exemplu:
+
+C:\>ping pc1
+Pinging 10.0.5.1 with 32 bytes of data:
+Ping statistics for 10.0.5.1:
+    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss)
+
+R2(config)#ip access-list extended BLOCK_PC2_DNS
+R2(config-ext-nacl)#deny tcp host 10.0.5.2 host 10.0.10.1 eq 53
+R2(config-ext-nacl)#deny udp host 10.0.5.2 host 10.0.10.1 eq 53
+R2(config-ext-nacl)#permit ip any any
+R2(config-ext-nacl)#exit
+R2(config)#interface g0/2
+R2(config-if)#ip access-group BLOCK_PC2_DNS in3
+
+
+➤Totusi, dupa aplicarea filtrarii si blocarii serviciului DNS de pe PC2, ne va afisa:
+C:\>ping pc1
+Ping request could not find host pc1. Please check the name and try again.
+C:\>ping srv_dns
+Ping request could not find host srv_dns. Please check the name and try again
+
+➤Putem vedea configuratiile Extended ACL de pe R2:
+R2#show access-lists 
+Extended IP access list BLOCK_10.0.5.0/24
+    10 deny ip 10.0.5.0 0.0.0.255 host 10.0.0.1 (11 match(es))
+    20 permit ip any any (4 match(es))
+Extended IP access list BLOCK_PC1_to_10.0.15.0/24_IP
+    10 deny ip host 10.0.5.1 10.0.15.0 0.0.0.255 (8 match(es))
+    20 permit ip any any (15 match(es))
+Extended IP access list BLOCK_PC1_HTTP&HTTPS
+    10 deny tcp host 10.0.5.1 host 10.0.10.2 eq www (12 match(es))
+    20 deny tcp host 10.0.5.1 host 10.0.10.2 eq 443
+    30 permit ip any any (2 match(es))
+Extended IP access list BLOCK_PC2_DNS
+    10 deny tcp host 10.0.5.2 host 10.0.10.1 eq domain
+    20 deny udp host 10.0.5.2 host 10.0.10.1 eq domain (8 match(es))
+    30 permit ip any any (1 match(es))
+
+
+##6. Concluzii
+➤Extended ACL-urile sunt mai eficiente decât cele standard, deoarece permit filtrarea detaliată, nu doar pe bază de adresă IP sursă.
+➤Este important să aplicăm Extended ACL-urile cât mai aproape de sursa traficului pentru a evita consumul inutil de lățime de bandă cu pachete care vor fi oricum blocate.
+➤Prin configurările realizate am demonstrat că:
+  Putem bloca comunicarea totală între anumite hosturi sau rețele.  
+  Putem restricționa accesul la servicii specifice, precum HTTP, HTTPS sau DNS.
+➤Am observat practic că atunci când un serviciu sau o destinație este blocată, dispozitivele primesc mesaje de tip Destination host unreachable sau Request Timeout, ceea ce confirmă aplicarea corectă a filtrelor.
