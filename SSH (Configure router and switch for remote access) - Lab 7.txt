@@ -1,0 +1,318 @@
+MIHAI Florin-Ionut
+1/2 English
+#SSH Configuration - Lab 7
+
+1/2 English
+
+## 1. Purpose and Description
+➤ The purpose of this lab is to configure a functional and secure EIGRP network. The goal is to establish secure local access via console (with username + password authentication) and remote access via SSH to router R1 and switch SW1. SSH access will be allowed only from the "Network Administrator" laptop. Configuration will be performed from a management laptop connected via console cable.
+
+## 2. New CLI Commands Used:
+
+* `ip address X.X.X.X 255.255.255.255` ➤ Assigns an IP address to an interface; the /32 mask (255.255.255.255) is specific for the loopback interface, used for stable management and remote access.
+* `interface vlan 1` ➤ Activates the virtual interface on the switch for management access (SSH or HTTP).
+* `ip default-gateway` ➤ Sets the default gateway on the switch, required for communication with other networks.
+* `username mh secret cisco` ➤ Creates the user "mh" with encrypted password "cisco", used for CLI and SSH authentication.
+* `line console 0` ➤ Accesses the configuration for the physical console line (local device access).
+* `login local` ➤ Enables local login on the console or SSH using the users created with the `username` command.
+* `exec-timeout` ➤ Sets the idle timeout after which the CLI session automatically closes (e.g. `exec-timeout 3 30` = 3 min 30 sec).
+* `crypto key generate rsa` ➤ Generates RSA keys required to activate and secure SSH connections.
+* `ip domain-name` ➤ Defines the domain name of the device, mandatory for RSA key generation.
+* `ip ssh version 2` ➤ Enables SSH protocol version 2, which is more secure than version 1.
+* `transport input ssh` ➤ Allows access only via SSH on VTY lines and blocks other protocols such as Telnet.
+* `access-class` ➤ Applies an access control list (ACL) on VTY lines to control which IP addresses are allowed to connect to the device.
+* `show ip ssh` ➤ Displays the status and configuration of SSH on the device (e.g. version, timeout, retry attempts).
+* `show ssh` ➤ Displays active SSH sessions and details about current remote connections.
+* `show users` ➤ Displays all users connected to the device, both on the local console and on the remote VTY lines.
+
+## 3. Network Topology:
+
+* 1 PC (10.0.15.0/24)
+* 2 switches 2960
+* 2 routers 2911
+* 1 laptop (Network Administrator - 192.168.0.0)
+* 1 management laptop
+
+## 4. Topology Description:
+
+➤ In this topology, devices are interconnected to enable routing using the EIGRP protocol. Secure local and remote access is ensured. Local access is via console cable with username and password authentication. Remote access is via SSH from the "Network Administrator" laptop to router R1 (via the Loopback interface) and to switch SW1 (via the VLAN 1 – SVI interface). IP addresses are preconfigured, and EIGRP ensures dynamic route propagation between routers.
+
+## 5. Demonstrations
+
+➤ IP addresses are preconfigured for each device. Dynamic routing using EIGRP was used for communication between devices in this topology. The goal is to configure remote SSH access from the client device named "Network Administrator." SSH access will target router R1 via its loopback interface and switch SW1 via its "SVI" virtual interface. Also, physical console access (CLI) will be secured using local login (username + password). Configuration will be done using a "Management Laptop" connected via console cable.
+
+➤ Configuring a loopback interface on routers is recommended when we want to have continuous remote access to the router without depending on physical interfaces that might fail or be deactivated:
+
+R1(config)#interface loopback 0
+%LINK-5-CHANGED: Interface Loopback0, changed state to up
+%LINEPROTO-5-UPDOWN: Line protocol on Interface Loopback0, changed state to up
+R1(config-if)#ip address 1.1.1.1 255.255.255.255
+R1(config-if)#no shutdown 
+
+
+➤ Configuring a virtual interface on a switch helps with remote administration via SSH. This interface is strictly for management, and the switch will not perform routing:
+
+SW1(config)#interface vlan 1
+SW1(config-if)#ip address 10.0.15.253 255.255.255.0
+SW1(config-if)#no shutdown 
+
+%LINK-5-CHANGED: Interface Vlan1, changed state to up
+%LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan1, changed state to up
+SW1(config)#ip default-gateway 10.0.15.254
+
+➤ For secure CLI access to switches and routers, I will configure authentication using username + password (local login). The same username and password will be used on all devices: username: mh + encrypted password: cisco.
+
+R1(config)#username mh secret cisco
+R1(config)#line console 0
+R1(config-line)#login local 
+R1(config-line)#exec-timeout 3 30
+
+➤ Now, for console access, it is mandatory to enter the username + password:
+
+User Access Verification
+Username: mh
+Password: 
+
+➤ To enable SSH, we first need to configure RSA keys on SW1 and R1. The cryptographic keys are used to secure remote connections, encrypt + decrypt data, and authenticate users and devices. To configure these RSA keys, we need to define an FQDN (FULLY QUALIFIED DOMAIN NAME): \[hostname].\[domain].\[top-level domain]
+
+Switch(config)#crypto key generate rsa
+% Please define a hostname other than Switch.
+Switch(config)#hostname SW1
+
+SW1(config)#crypto key generate rsa
+% Please define a domain-name first.
+SW1(config)#ip domain-name mh.com
+
+SW1(config)#crypto key generate rsa
+The name for the keys will be: SW1.mh.com
+
+How many bits in the modulus [512]: 2048
+% Generating 2048 bit RSA keys, keys will be non-exportable...[OK]
+
+➤ Now we will configure SSH access on the VTY lines. We want only the Network Administrator (192.168.0.1) to have remote access to SW1:
+
+SW1(config)#enable secret cisco
+SW1(config)#username mh secret cisco
+SW1(config)#access-list 1 permit host 192.168.0.1
+SW1(config)#access-list 1 deny any
+SW1(config)#ip ssh version 2
+SW1(config)#line vty 0 15
+SW1(config-line)#login local 
+SW1(config-line)#exec-timeout 3 30
+SW1(config-line)#transport input ssh
+SW1(config-line)#access-class 1 in
+
+➤ I will now connect from the "Network Administrator" laptop to remotely access the SW1 switch via SSH. I will also attempt to connect via Telnet, but I will not be able to access the terminal since I configured the switch to accept only SSH: `SW1(config-line)#transport input ssh`
+
+C:\>telnet 10.0.15.253
+Trying 10.0.15.253 ...Open
+
+[Connection to 10.0.15.253 closed by foreign host]
+
+➤ I will now have Secure Shell (SSH) access to the virtual interface IP address of the switch:
+
+C:\>ssh -l mh 10.0.15.253
+Password: 
+
+SW1>en
+Password: 
+SW1#conf t
+Enter configuration commands, one per line.  End with CNTL/Z.
+SW1(config)#
+
+➤ I will also have Secure Shell (SSH) access to the loopback address of the router:
+
+C:\>ssh -l mh 1.1.1.1
+Password: 
+
+R1>en
+Password: 
+R1#conf t
+Enter configuration commands, one per line.  End with CNTL/Z.
+R1(config)#
+
+➤ Additionally, we can verify if SSH is enabled or disabled, if anyone is currently connected via SSH, and we can also view users who accessed the physical console or the VTY lines:
+
+SW1(config)#do show ip ssh
+SSH Enabled - version 2.0
+Authentication timeout: 120 secs; Authentication retries: 3
+
+SW1(config)#do show ssh
+Connection      Version Mode Encryption		Hmac	State             Username
+0               1.99    IN   aes128-cbc      hmac-sha1     Session Started         mh
+0               1.99    OUT  aes128-cbc      hmac-sha1     Session Started         mh
+%No SSHv1 server connections running.
+
+SW1(config)#do show users
+    Line       User       Host(s)              Idle       Location
+*  0 con 0     mh         idle                 00:00:00 
+   2 vty 0     mh         idle                 00:01:02 
+
+  Interface    User               Mode         Idle     Peer Address
+
+
+## 6. Conclusions
+
+➤ Physical console access is protected by username and password authentication.
+➤ Remote access via SSH is allowed only for the "Network Administrator" device and is restricted for other users.
+➤ Telnet access has been blocked, ensuring a high level of network security.
+➤ Proper configuration of the loopback interface and VLAN 1 interface ensures stable connectivity and easy device management.
+
+2/2 Romana
+
+##1. Scop si descriere
+➤Scopul acestei lucrări este configurarea unei rețele EIGRP funcționale și securizate. Se urmărește realizarea accesului local securizat prin consolă (cu autentificare user + parolă) și accesului remote prin SSH către routerul R1 și switchul SW1. Accesul SSH va fi permis doar laptopului "Network Administrator". Configurarea se va realiza de pe un laptop de management conectat prin cablu de consolă.
+
+
+##2. Comenzi noi folosite in CLI:
+ip address X.X.X.X 255.255.255.255 ➤ Atribuie o adresă IP unei interfețe; masca /32 (255.255.255.255) este specifică pentru interfața de loopback, folosită pentru management și acces remote stabil.
+interface vlan 1 ➤ Activează interfața virtuală de pe switch pentru acces la management (SSH sau HTTP).
+ip default-gateway ➤ Setează gateway-ul implicit pe switch, necesar pentru a permite comunicarea cu alte rețele.
+username mh secret cisco ➤ Creează utilizatorul "mh" cu parolă criptată "cisco", folosit pentru autentificare la CLI și SSH.
+line console 0 ➤ Accesează configurația pentru linia de consolă fizică (acces local direct la dispozitiv).
+login local ➤ Activează autentificarea locală pe consolă sau SSH, folosind utilizatorii creați cu comanda username.
+exec-timeout ➤ Setează timpul de inactivitate după care sesiunea CLI se închide automat (ex. exec-timeout 3 30 = 3 min 30 sec).
+crypto key generate rsa ➤ Generează chei RSA necesare pentru activarea și securizarea conexiunilor SSH.
+ip domain-name ➤ Definește numele de domeniu pentru dispozitiv, obligatoriu pentru generarea cheilor RSA.
+ip ssh version 2 ➤ Activează protocolul SSH versiunea 2, mai sigur decât versiunea 1.
+transport input ssh ➤ Permite acces doar prin SSH pe liniile VTY și blochează alte protocoale cum ar fi Telnet.
+access-class ➤ Aplică o listă de acces (ACL) pe liniile VTY pentru a controla ce adrese IP au voie să se conecteze la dispozitiv.
+show ip ssh ➤ Afișează statusul și configurarea SSH pe dispozitiv (ex: versiune, timeout, număr de încercări).
+show ssh ➤ Afișează sesiunile SSH active și detalii despre conexiunile curente.
+show users ➤ Afișează toți utilizatorii conectați la dispozitiv, atât pe consola locală, cât și pe liniile VTY (remote).
+
+##3. Topologia de retea:
+1 PC (10.0.15.0/24)
+2 switchuri 2960
+2 routere 2911
+1 laptop (Network Admin - 192.168.0.0)
+1 laptop de management
+
+##4.Descrierea topologiei:
+➤În această topologie, dispozitivele sunt interconectate pentru a permite rutarea prin protocolul EIGRP. Se asigură un acces securizat local și remote. Accesul local prin cablu de consolă cu autentificare pe bază de username și parolă. Acces remote prin SSH de la laptopul "Network Administrator" la routerul R1 (prin interfața Loopback) și la switchul SW1 (prin interfața VLAN 1 – SVI). Adresele IP sunt preconfigurate și EIGRP asigură propagarea rutelor între routere.
+
+##5. Demonstrații
+➤Adresele IP sunt preconfigurate pentru fiecare dispozitiv in parte. S-a folosit rutarea dinamica prin EIGRP pentru comunicarea dispozitivelor din aceasta topologie. Se urmareste sa se configureze accesul remote prin SSH de la dispozitivul client denumit "Network Administrator". Accesul prin SSH se va face la routerul R1 prin intermediul interfetei sale de loopback si la switchul SW1 prin intermediul interfetei virtuale "SVI". De asemenea, se doreste ca accesul ca consola fizica (CLI) sa se faca in mod securizat prin login local (username+parola). Pentru configurarea tuturor cerintelor se va folosi un "Management Laptop" care va face conexiunea cu dispozitivele prin-trun cablu de consola.
+
+➤Configurarea unei interfete de loopback pe routere este oportuna atunci cand dorim sa accesam routerul remote continuu si nu vrem sa depindem de interfetele fizice ale acestuia care pot esua sau se pot dezactiva:
+R1(config)#interface loopback 0
+%LINK-5-CHANGED: Interface Loopback0, changed state to up
+%LINEPROTO-5-UPDOWN: Line protocol on Interface Loopback0, changed state to up
+R1(config-if)#ip ad
+R1(config-if)#ip address 1.1.1.1 255.255.255.255
+R1(config-if)#no shutdown 
+
+➤Configurarea unei interfete virtuale pe un switch ajuta la aministrarea switchului remote prin intermediul SSH. Acesta interfata este stric pentru management si switchul nu va face rutare: 
+SW1(config)#interface vlan 1
+SW1(config-if)#ip address 10.0.15.253 255.255.255.0
+SW1(config-if)#no shutdown 
+
+%LINK-5-CHANGED: Interface Vlan1, changed state to up
+%LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan1, changed state to up
+SW1(config)#ip default-gateway 10.0.15.254
+
+➤Pentru un acces securizat la CLI-ul switchurilor si cel al routerelor, o sa configurez o autentificare pe baza de username+parola (login local). La toate dispozitivele va fi acelasi username: mh + parola (criptata): cisco.
+
+R1(config)#username mh secret cisco
+R1(config)#line console 0
+R1(config-line)#login local 
+R1(config-line)#exec-timeout 3 30
+
+➤Acum, pentru accesul la linia de consola este necesar sa introducem user + parola:
+User Access Verification
+Username: mh
+Password: 
+
+➤Pentru a accesa SSH mai intai este necesar sa configurez cheile RSA pe dispozitivele SW1 si R1. Cheile criptografice sunt folosite pentru securizarea conexiunilor remote, criptarea + decriptarea datelor, autentificare utilizator + device. Pentru a configura aceste chei RSA este necesar initial sa avem un format FQDN (FULL QUALIFIED DOMAINNAME) : 	[hostname].[domeniu].[top-level domain]:
+
+Switch(config)#crypto key generate rsa
+% Please define a hostname other than Switch.
+Switch(config)#hostname SW1
+
+SW1(config)#crypto key generate rsa
+% Please define a domain-name first.
+SW1(config)#ip domain-name mh.com
+
+SW1(config)#crypto key generate rsa
+The name for the keys will be: SW1.mh.com
+
+How many bits in the modulus [512]: 2048
+% Generating 2048 bit RSA keys, keys will be non-exportable...[OK]
+
+➤Acum, vom configura SSH efectiv pe liniile VTY. Vrem ca doar Network Administrator (192.168.0.1) sa aiba acces remote la SW1:
+
+SW1(config)#enable secret cisco
+SW1(config)#username mh secret cisco
+SW1(config)#access-list 1 permit host 192.168.0.1
+SW1(config)#access-list 1 deny any
+SW1(config)#ip ssh version 2
+SW1(config)#line vty 0 15
+SW1(config-line)#login local 
+SW1(config-line)#exec-timeout 3 30
+SW1(config-line)#transport input ssh
+SW1(config-line)#access-class 1 in
+
+➤Ma voi conecta de pe laptopul "Network Administrator" pentr a accesa remote prin SSH switchul SW1. Voi incerca sa ma conectez si prin Telnet, dar voi observa sa nu voi putea avea acces la terminal, deoarece am configurat doar protoclul SSH: SW1(config-line)#transport input ssh).
+
+C:\>telnet 10.0.15.253
+Trying 10.0.15.253 ...Open
+
+[Connection to 10.0.15.253 closed by foreign host]
+
+➤Deci, voi avea acces prin Secure Shell la adresa interfetei virtuale a switchului:
+C:\>ssh -l mh 10.0.15.253
+Password: 
+
+SW1>en
+Password: 
+SW1#conf t
+Enter configuration commands, one per line.  End with CNTL/Z.
+SW1(config)#
+
+
+➤Deci, voi avea acces prin Secure Shell la adresa de loopback a routerului:
+C:\>ssh -l mh 1.1.1.1
+Password: 
+
+R1>en
+Password: 
+R1#conf t
+Enter configuration commands, one per line.  End with CNTL/Z.
+R1(config)#
+
+
+➤Totodata, putem verifica daca SSH este activ/inactiv, putem daca la momentul curent se afla cineva conectat prin SSH si de asemenea putem vedea utilizatorii care au accesat consola fizica si liniile VTY:
+
+SW1(config)#do show ip ssh
+SSH Enabled - version 2.0
+Authentication timeout: 120 secs; Authentication retries: 3
+SW1(config)#do show ssh
+Connection      Version Mode Encryption		Hmac	State             Username
+0               1.99    IN   aes128-cbc      hmac-sha1     Session Started         mh
+0               1.99    OUT  aes128-cbc      hmac-sha1     Session Started         mh
+%No SSHv1 server connections running.
+SW1(config)#do show users
+    Line       User       Host(s)              Idle       Location
+*  0 con 0     mh         idle                 00:00:00 
+   2 vty 0     mh         idle                 00:01:02 
+
+  Interface    User               Mode         Idle     Peer Address
+
+
+##6. Concluzii
+➤ Accesul prin consola fizică este protejat prin autentificare pe bază de username și parolă.
+➤ Accesul remote prin SSH este permis doar pentru dispozitivul "Network Administrator" și este restricționat pentru alți utilizatori.
+➤ Accesul prin Telnet a fost blocat, asigurând un nivel ridicat de securitate al rețelei.
+➤ Configurarea corectă a interfeței loopback și a interfeței VLAN 1 asigură conectivitate stabilă și administrare ușoară a dispozitivelor.
+
+
+
+
+
+
+
+
+
+
+
+
