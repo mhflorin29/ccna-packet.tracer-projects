@@ -1,0 +1,234 @@
+MIHAI Florin-Ionut
+1/2 English
+#STP Load Balancing - Lab 8
+
+##1. Purpose and Description
+➤ Configuration of a segmented network using VLANs (15, 25, 35) with inter-VLAN routing via ROAS and implementation of a redundant topology using STP Load-Balancing for traffic optimization and loop prevention. In this network, three VLANs were created to separate traffic between departments. ROAS was used to allow communication between VLANs, and redundancy was ensured by adding a fourth switch and enabling the Spanning Tree Protocol (STP).
+➤ To efficiently distribute traffic, a different Root Bridge was configured for each VLAN (SW1 for VLAN 15, SW2 for 25, SW3 for 35), avoiding single-path traffic bottlenecks.
+➤ For fast and secure PC connectivity, PortFast and BPDU Guard were enabled on Access ports, preventing loops caused by improper switch connections.
+
+##2. New CLI Commands Used:
+spanning-tree vlan X priority Y → sets the STP priority for a VLAN (used to designate the Root Bridge).
+show spanning-tree vlan X → displays STP information for the specified VLAN (Root Bridge, ports, etc.).
+interface range f0/1-4 → selects multiple ports to configure at once.
+spanning-tree portfast → enables PortFast (port enters forwarding state quickly – used for PCs).
+spanning-tree bpduguard enable → enables BPDU protection on PortFast-enabled ports (disables port if a BPDU is received).
+
+##3. Network Topology:
+1 router 2911
+4 × 2960 switches + 1 × 2960 switch
+9 PCs
+
+##4. Topology Description:
+➤ An extended LAN network includes a Cisco 2911 router and five Catalyst 2960 switches, interconnected for redundancy. The router, configured with ROAS and subinterfaces for VLANs 15, 25, and 35, handles inter-VLAN routing and WAN access. Four switches (SW1–SW4) form the main ring, each having trunk ports between them and to the router. The fifth switch (SW5) provides extra connectivity for workstations. The nine PCs are connected on access ports. The Spanning Tree Protocol (STP) runs by default, preventing Layer 2 loops. STP load-balancing was configured by setting different root bridge priorities (SW1 for VLAN 15, SW2 for 25, SW3 for 35), optimizing traffic distribution over redundant links. PortFast and BPDU Guard were activated on access ports to accelerate end-device connectivity and protect the network from accidental loops.
+
+##5. Demonstrations
+➤ In this network topology, I configured 3 subnets assigned to VLANs 15, 25, and 35. VLANs allow for department-level traffic separation into 3 broadcast domains, minimizing interference. VLANs are a cost-effective method for managing complex networks. They also enhance network security (as PCs are no longer in the same LAN, security policies are easier to apply) and traffic performance (when a device doesn’t know the MAC of the destination, traffic is only sent within its own VLAN, reducing congestion and bandwidth use). The network is preconfigured, and ACCESS and TRUNK ports are set. I chose ROAS for inter-VLAN routing on R1.
+Additionally, a redundant topology was created by adding SW4, using STP Load-Balancing to distribute traffic better, and assigning ROOT and SECONDARY BRIDGEs for failover.
+
+➤ By default, SW1 is the ROOT BRIDGE in VLANs 15, 25, and 35. How do we know? Because all its ports are "Designated Ports" and the following message appears in each VLAN:
+VLAN0035 | VLAN0025 | VLAN0015  
+  Spanning tree enabled protocol ieee  
+  Root ID    Priority    32803  
+             Address     0001.C902.8E64  
+             This bridge is the root  
+             Hello Time  2 sec  Max Age 20 sec  Forward Delay 15 sec  
+
+➤ Another way to confirm the ROOT BRIDGE is by checking that the same MAC Address appears in both Root ID and Bridge ID sections:
+
+  Root ID    Priority    32803  
+             Address     0001.C902.8E64  
+
+  Bridge ID  Priority    32803  (priority 32768 sys-id-ext 35)  
+             Address     0001.C902.8E64  
+
+➤ Spanning Tree Protocol (STP) is enabled by default and is crucial in redundant topologies to prevent network loops (Layer 2 loops), which can cause Broadcast Storms—a dangerous event that congests the network and may lead to hardware failure.
+Once the topology converges, STP selects a main path and blocks redundant ones (Blocking State). A potential issue is that the same root bridge is used for all VLANs, overloading specific links. We solve this with STP Load Balancing by assigning different Root Bridges per VLAN, improving efficiency.
+
+➤ ROOT BRIDGEs are configured as follows:
+
+VLAN 15 ----> SW1 (Root Bridge)  
+VLAN 25 ----> SW2 (Root Bridge)  
+VLAN 35 ----> SW3 (Root Bridge)  
+
+➤ Thus, traffic is distributed evenly:
+SW1(config)#spanning-tree vlan 15 priority 4096  
+SW1(config)#spanning-tree vlan 25 priority 24576  
+SW1(config)#spanning-tree vlan 35 priority 24576  
+
+SW2(config)#spanning-tree vlan 25 priority 4096  
+SW2(config)#spanning-tree vlan 15 priority 24576  
+SW2(config)#spanning-tree vlan 35 priority 24576  
+
+SW3(config)#spanning-tree vlan 35 priority 4096  
+SW3(config)#spanning-tree vlan 25 priority 24576  
+SW3(config)#spanning-tree vlan 15 priority 24576
+  
+➤ We can verify different Root Bridges per VLAN using:
+
+SW1#show spanning-tree vlan 15  
+SW2#show spanning-tree vlan 25  
+SW3#show spanning-tree vlan 35  
+
+➤ STP also offers PortFast and BPDU Guard. PortFast allows end-devices like PCs to skip the full STP convergence process (Blocking → Listening → Learning → Forwarding), which takes ~50 seconds. On DHCP-enabled devices, this delay can cause failures in getting IP addresses. The solution? Enable PortFast on all PC-connected ports:
+
+SW2(config)#interface range f0/1-4  
+SW2(config-if-range)#spanning-tree portfast 
+ 
+➤ A warning appears to indicate PortFast should only be used on host-connected (ACCESS) ports:
+
+%Warning: portfast should only be enabled on ports connected to a single host...  
+➤ For security, enable BPDU Guard together with PortFast:
+
+SW2(config)#interface range f0/1-4  
+SW2(config-if-range)#spanning-tree bpduguard enable  
+➤ BPDU Guard protects the network in case a switch is mistakenly connected to a PortFast-enabled port. For example, if SW0 is connected to port F0/22 (meant for a PC), the following messages will appear, disabling the port and preventing a loop:
+
+%SPANTREE-2-BLOCK_BPDUGUARD: Received BPDU on port FastEthernet0/22...  
+%PM-4-ERR_DISABLE: bpduguard error detected on 0/22, putting 0/22 in err-disable state  
+
+##6. Conclusions
+➤ VLAN separation enables efficient network organization, reducing interference and enhancing security.
+➤ The 2911 router, configured with subinterfaces (ROAS), manages inter-VLAN traffic and provides external network access.
+➤ The redundant topology with four switches and STP activation prevents loops and ensures operational stability.
+➤ Assigning a different root bridge per VLAN balances traffic and improves overall performance.
+➤ Enabling PortFast and BPDU Guard on access ports shortens connection times for PCs and safeguards the network from misconfigurations.
+
+
+2/2 Romana
+
+##1. Scop si descriere
+➤Configurarea unei rețele segmentate pe VLAN-uri (15, 25, 35) cu rutare inter-VLAN prin ROAS și implementarea unei topologii redundante cu STP Load-Balancing pentru echilibrarea traficului și evitarea buclelor. În această rețea am creat trei VLAN-uri pentru a separa traficul între departamente. Am folosit metoda ROAS pentru a permite comunicarea între VLAN-uri, iar pentru redundanță am adăugat un al patrulea switch și am activat Spanning Tree Protocol (STP).
+➤Pentru a distribui traficul eficient, am configurat câte un Root Bridge diferit pentru fiecare VLAN (SW1 pentru VLAN 15, SW2 pentru 25, SW3 pentru 35). Astfel, evităm ca tot traficul să treacă pe aceeași cale.
+➤Pentru conectarea rapidă și sigură a PC-urilor, am activat PortFast și BPDU Guard pe porturile Access, prevenind buclele cauzate de conectarea greșită a altor switchuri.
+
+##2. Comenzi noi folosite in CLI:
+spanning-tree vlan X priority Y → setează prioritatea STP pentru un VLAN (folosit pentru a desemna Root Bridge-ul).
+show spanning-tree vlan X → afișează informații STP pentru VLAN-ul specific (Root Bridge, porturi etc.).
+interface range f0/1-4 → selectează mai multe porturi de configurat simultan.
+spanning-tree portfast → activează PortFast (face ca portul să intre rapid în starea forwarding – folosit pentru PC-uri).
+spanning-tree bpduguard enable → activează protecția BPDU pe porturi cu PortFast (dezactivează portul dacă primește BPDU).
+
+##3. Topologia de retea:
+1 router 2911
+4 switchuri 2960 + 1 switch 2960
+9 pc-uri
+##4.Descrierea topologiei:
+➤O rețea LAN extinsă include un router Cisco 2911 și cinci switch‑uri Catalyst 2960, interconectate pentru redundanță. Routerul, configurat ROAS cu subinterfețe pentru VLAN 15, 25 și 35, asigură rutarea inter‑VLAN și acces WAN. Patru switch‑uri (SW1–SW4) formează inelul principal, fiecare având porturi trunk între ele și către router, iar al cincilea switch (SW5) oferă extensie suplimentară pentru stații de lucru. Cele nouă PC‑uri se conectează pe porturi access. Spanning Tree Protocol (STP) rulează implicit, prevenind buclele Layer 2; am setat STP load‑balancing prin priorități diferite de root bridge (SW1 pentru VLAN 15, SW2 pentru 25, SW3 pentru 35), optimizând distribuția traficului pe legăturile redundante. PortFast și BPDU Guard sunt activate pe porturile access pentru a accelera conectarea end‑device‑urilor și a proteja rețeaua de bucle accidentale.
+
+##5. Demonstrații
+➤In aceasta topologie de retea voi configura 3 subretele care se vor regasi in VLAN 15,25 si 35. Cu ajutorul VLAN-urilor voi face separarea fiecarui departament in 3 broadcast domain, astfel incat traficul sa nu interfereze. VLAN-urile reprezinta o solutie mai buna deoarece reprezinta o varianta mai ieftina de management al unei retele complexe. De asemenea, aceste sunt utile si din punct de vedere al securitatii (PC-urile nu se vor mai afla in acelasi LAN si astfel se pot crea politici de securitate mai usor) si al performantei traficului de retea (atunci cand un dispozitiv doreste sa comunice cu un altul si inca nu isi cunoaste adresa MAC Destinatie, traficul nu va fi trimis tuturor dispozitivelor existente ci doar acelora din propriul VLAN, din propriul Broadcast Domain, astfel traficul nefiind foarte congestionat si folosindu-se o latime de banda mai redusa). Reteaua este preconfigurata si porturile ACCESS si TRUNK sunt setate. Am ales ROAS ca metoda de inter-VLAN routing pe routerul R1.
+Totodata, vom configura si o topologie redundanta prin adaugarea lu SW4 si ne vom ajuta de STP Load-Balancing pentru a crea o echilibrare mai buna a traficului, dar si prin alegerea unui ROOT BRIDGE si SECONDARY BRIDGE ca saolutie de backup in caz ca principalul SW denumite ROOT va pica.
+
+➤In mod curent, in fiecare dintre VLANurile 15,25,35 SW1 este ROOT BRIDGE. De unde stim asta? Deoearece fiecare dintre porturile lui sunt "Designated Ports" si de asemenea in fiecare dintre VLAN-uri apare mesajul:
+VLAN0035 | VLAN0025 | VLAN0015
+  Spanning tree enabled protocol ieee
+  Root ID    Priority    32803
+             Address     0001.C902.8E64
+             This bridge is the root
+             Hello Time  2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+➤O alta modalitate de a regasi ROOT BRIDGE-UL este de a ne uita dupa prezenta aceleiasi MAC Address in ambele sectiuni ale ROOT ID, respectiv Bridge ID (0001.C902.8E64):
+
+  Root ID    Priority    32803
+             Address     0001.C902.8E64
+
+  Bridge ID  Priority    32803  (priority 32768 sys-id-ext 35)
+             Address     0001.C902.8E64
+
+➤Spanning Tree Protocol (STP) este activat by default si se activeaza intr-o topologie de retea redundanta pentru a evita pericolul formarii de bucle de retea (Layer 2 Loops) ceea ce ar putea cauza un pericol si mai grav, si anume Broadcast Storm (fenomenul de broadcast storm poate crea congestii ale traficului de retea si este foarte periculos, putand sa blocheze si sa cauzeze hardware failure semnificative). 
+Totusi, odata ce topologia a facut convergenta, STP isi va alege o ruta principala, punand in rezerva (Blocking State) celelalte porturi redundante. Aici exista o problema semnificativa, deoarece in cazul nostru pentru fiecare VLAN (15,25,35) vom avea aceeasi ruta principala ceea ce creeaza un dezechilibru al traficului: se folosesc mereu aceleasi legaturi, iar traficul nu e distribuit eficient. Putem corecta aceasta deficienta prin folosirea STP Load Balancing care ajuta sa se aleaga ROOT BRIDGE diferit in fiecare VLAN, si practic ne va ajuta sa distribuim traficul pe mai multe cai, creand o topologie mai eficienta si o performanta a traficului distribuit in mod egal in fiecare VLAN.
+
+➤Voi configura astfel cate un ROOT BRIDGE pentru fiecare VLAN:
+VLAN 15 ----> SW1 (Root Bridge)
+VLAN 25 ----> SW2 (Root Bridge)
+VLAN 35 ----> SW3 (Root Bridge)
+
+➤Astfel, traficul se distrbuie in mod egal:
+
+SW1(config)#spanning-tree vlan 15 priority 4096
+SW1(config)#spanning-tree vlan 25 priority 24576
+SW1(config)#spanning-tree vlan 35 priority 24576
+
+SW2(config)#spanning-tree vlan 25 priority 4096
+SW2(config)#spanning-tree vlan 15 priority 24576
+SW2(config)#spanning-tree vlan 35 priority 24576
+
+SW3(config)#spanning-tree vlan 35 priority 4096
+SW3(config)#spanning-tree vlan 25 priority 24576
+SW3(config)#spanning-tree vlan 15 priority 24576
+
+
+➤Acum, putem vedea cu ajutorul comenzii #show spanning-tree vlan {15|25|35} ca in VLAN-uri diferite avem ROOT BRIDGE diferite:
+
+SW1#show spanning-tree vlan 15
+VLAN0015
+  Spanning tree enabled protocol ieee
+  Root ID    Priority    4111
+             Address     0001.C902.8E64
+             This bridge is the root
+             Hello Time  2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+
+SW2#show spanning-tree vlan 25
+VLAN0025
+  Spanning tree enabled protocol ieee
+  Root ID    Priority    4121
+             Address     00E0.B080.0A20
+             This bridge is the root
+             Hello Time  2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+SW3#show spanning-tree vlan 35
+VLAN0035
+  Spanning tree enabled protocol ieee
+  Root ID    Priority    4131
+             Address     000A.41D5.6DE3
+             This bridge is the root
+             Hello Time  2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+
+
+➤O alta caracteristica importanta si de ajutor oferita de STP este PortFast si BPDU Guard. PortFast permite configurare unor dispozitive precum laptopuri, pc-uri sa treaca/ignore un proces STP complet care ar dura mult si ar fi anevoios: trecere prin Blocking -> Listening -> Learning -> Forwarding dureaza aproximativ 50 de secunde, si este foarte sensibil ca niste end-device-uri care nu sunt "periculoase" (nu trimit mesaje Hello BPDUs precum un switch) si drept urmare nu pot forma Layer 2 Loops sa astepte atat de mult si sa faca convergenta STP completa. Mai ales daca dispozitivele sunt configurate cu alocare dinamica prin DHCP, un proces atat de lung de asteptare a terminarii convergentei poate sa duca la esuarea mesajelor de tip DHCP Discover. Solutia? Configurarea si activarea PortFast pe toate porturile la care sunt conectate PC-uri:
+
+SW2(config)#interface range f0/1-4
+SW2(config-if-range)#spanning-tree portfast 
+
+➤Si ne-a aparut mesajul de avertisment care ne spuna ca PortFast ar trebuie activat doar la dispozitivele ce conecteaza end-hosts, adica la porturile care sunt de tip "ACCESS":
+%Warning: portfast should only be enabled on ports connected to a single host. Connecting hubs, concentrators, switches, bridges, etc... to this interface  when portfast is enabled, can cause temporary bridging loops.
+!!Use with CAUTION!!
+
+%Portfast has been configured on FastEthernet0/1 but will only have effect when the interface is in a non-trunking mode.
+
+➤Din considerente de siguranta, impreuna cu PortFast este recomandat sa se configureze si BPDU Guard:
+SW2(config)#interface range f0/1-4
+SW2(config-if-range)#spanning-tree bpduguard enable 
+
+➤BPDU Guard reprezinta o caracteristica a STP care permite protejarea unui port configurat cu PortFast (daca peste ceva timp o sa se conecteze din greseala in locului unui PC un Switch, Switchul poate crea bucle de retea ceea va duce la Broadcast Storm si implicit o situatie periculoasa asupra retelei). Sa presupunem urmatoare situatie: pe interfata F0/22 a switchului SW2 se va conecta un alt PC: MH's PC0 care va avea functiile de PortFast + BPDU Guard activate. Intre timp, voi simula o greseala de conectare si voi lega SW0 la interfata configurata cu BPDU Guard. Datorita configurarii BPDU Guard a interfetei F0/22 am primit mesajul de mai jos, care anunta dezactivare interfetei si indepartarea situatiei de pericol:
+
+SW2(config-if)#
+%LINK-3-UPDOWN: Interface FastEthernet0/22, changed state to down
+%LINEPROTO-5-UPDOWN: Line protocol on Interface FastEthernet0/22, changed state to down
+%LINK-5-CHANGED: Interface FastEthernet0/22, changed state to up
+
+%LINEPROTO-5-UPDOWN: Line protocol on Interface FastEthernet0/22, changed state to up
+%SPANTREE-2-BLOCK_BPDUGUARD: Received BPDU on port FastEthernet0/22 with BPDU Guard enabled. Disabling port.
+
+%PM-4-ERR_DISABLE: bpduguard error detected on 0/22, putting 0/22 in err-disable state
+
+%LINK-5-CHANGED: Interface FastEthernet0/22, changed state to administratively down
+%LINEPROTO-5-UPDOWN: Line protocol on Interface FastEthernet0/22, changed state to down
+
+##6. Concluzii
+➤Separarea pe VLAN-uri permite organizarea eficientă a rețelei, reducând interferențele și crescând nivelul de securitate.
+➤Routerul 2911, configurat cu subinterfețe (ROAS), gestionează traficul dintre VLAN-uri și oferă acces la rețele externe.
+➤Structura redundantă cu cele 4 switchuri și activarea STP previn buclele de rețea și asigură stabilitate în funcționare.
+➤Configurarea unui root bridge diferit pentru fiecare VLAN distribuie uniform traficul și optimizează performanța generală.
+➤Activarea PortFast și BPDU Guard pe porturile de acces reduce timpul de conectare pentru PC-uri și protejează rețeaua de configurări greșite.
+
+
+
+
+
+
+
+
